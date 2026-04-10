@@ -46,13 +46,18 @@ open_gui :-
     draw_block_divider(Dialog, vertical, 124, 400),
     draw_block_divider(Dialog, vertical, 238, 400),
 
-    % Separadores horizontales (comunes para ambas grillas).
+    % Separadores horizontales para AMBAS grillas (input y result).
     draw_block_divider(Dialog, horizontal, 124, 0),
     draw_block_divider(Dialog, horizontal, 238, 0),
+    draw_block_divider(Dialog, horizontal, 124, 400),
+    draw_block_divider(Dialog, horizontal, 238, 400),
 
-    % Crea el botón Resolver y lo posiciona centrado debajo de las dos grillas.
+    % Crea el botón Resolver y el botón Limpiar Todo.
     new(ResolverBtn, button('Resolver', message(@prolog, on_resolver_click, Dialog))),
-    send(Dialog, display, ResolverBtn, point(350, 396)),
+    send(Dialog, display, ResolverBtn, point(320, 396)),
+
+    new(ClearBtn, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog))),
+    send(Dialog, display, ClearBtn, point(450, 396)),
 
     % Abre la ventana en una posición razonable.
     send(Dialog, open, point(50, 50)).
@@ -100,10 +105,12 @@ draw_block_divider(Dialog, vertical, XBase, OffsetX) :-
     send(L, pen, 2),
     send(L, colour, colour('#666666')),
     send(Dialog, display, L).
-draw_block_divider(Dialog, horizontal, Y, _OffsetX) :-
+draw_block_divider(Dialog, horizontal, Y, OffsetX) :-
     % Línea horizontal de izquierda a derecha de la grilla.
-    % Y es igual para ambas grillas (comparten el mismo eje Y).
-    new(L, line(10, Y, 348, Y)),
+    % OffsetX desplaza la línea para la grilla correspondiente.
+    XStart is 10 + OffsetX,
+    XEnd is 348 + OffsetX,
+    new(L, line(XStart, Y, XEnd, Y)),
     send(L, pen, 2),
     send(L, colour, colour('#666666')),
     send(Dialog, display, L).
@@ -116,6 +123,20 @@ clear_result_grid(Dialog) :-
                   ( cell_item(Dialog, Prefix, Row, Col, CellItem),
                     send(CellItem, selection, '')
                   ))).
+
+% Limpia la grilla input (establece todas las celdas a vacío).
+clear_input_grid(Dialog) :-
+    Prefix = input,
+    forall(between(1, 9, Row),
+           forall(between(1, 9, Col),
+                  ( cell_item(Dialog, Prefix, Row, Col, CellItem),
+                    send(CellItem, selection, '')
+                  ))).
+
+% Handler del botón Limpiar Todo: limpia ambas grillas (input y result).
+on_clear_click(Dialog) :-
+    clear_input_grid(Dialog),
+    clear_result_grid(Dialog).
 
 % Handler del botón Resolver: lee, resuelve y actualiza la grilla.
 on_resolver_click(Dialog) :-
