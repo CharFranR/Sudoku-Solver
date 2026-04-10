@@ -7,15 +7,17 @@
 :- use_module(library(pce)).
 :- use_module(sudoku_solver).
 
-% Genera un nombre estable para cada celda (por fila y columna).
-cell_name(Row, Col, NameAtom) :-
+% Genera un nombre estable para cada celda (por prefijo, fila y columna).
+% Prefix puede ser 'input' para celdas de entrada o 'result' para la grilla de resultados.
+cell_name(Prefix, Row, Col, NameAtom) :-
     % Se usa para poder recuperar el widget luego con get(Dialog, member, Name).
-    atomic_list_concat([cell_, Row, '_', Col], NameAtom).
+    atomic_list_concat([Prefix, '_cell_', Row, '_', Col], NameAtom).
 
 % Recupera el widget de una celda desde el Dialog.
-cell_item(Dialog, Row, Col, CellItem) :-
-    % Cada celda fue creada con un name atom del estilo cell_R_C.
-    cell_name(Row, Col, NameAtom),
+% Prefix puede ser 'input' para celdas de entrada o 'result' para la grilla de resultados.
+cell_item(Dialog, Prefix, Row, Col, CellItem) :-
+    % Cada celda fue creada con un name atom del estilo input_cell_R_C.
+    cell_name(Prefix, Row, Col, NameAtom),
     get(Dialog, member, NameAtom, CellItem).
 
 % Abre la ventana principal con la grilla y el botón Resolver.
@@ -26,7 +28,7 @@ open_gui :-
     % Crea la grilla 9x9 de campos de texto.
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
-                  create_cell(Dialog, Row, Col))),
+                  create_cell(Dialog, input, Row, Col))),
 
     % Dibuja separadores gruesos entre bloques 3x3.
     draw_block_divider(Dialog, vertical, 124),
@@ -42,9 +44,10 @@ open_gui :-
     send(Dialog, open, point(50, 50)).
 
 % Crea una celda editable (text_item) en una posición de la grilla.
-create_cell(Dialog, Row, Col) :-
+% Prefix puede ser 'input' para celdas de entrada o 'result' para la grilla de resultados.
+create_cell(Dialog, Prefix, Row, Col) :-
     % El nombre del item sirve para identificarlo dentro del Dialog.
-    cell_name(Row, Col, NameAtom),
+    cell_name(Prefix, Row, Col, NameAtom),
     new(CellItem, text_item(NameAtom, '')),
     % Oculta el label para que no aparezca texto al lado de cada celda.
     send(CellItem, label, ''),
@@ -163,7 +166,7 @@ read_row(Dialog, Row, RowCells, RowMask) :-
 % Lee una celda y la interpreta como 0 (vacío) o 1..9 (pista/valor).
 read_cell(Dialog, Row, Col, Cell, Clue) :-
     % Obtiene el widget y su texto.
-    cell_item(Dialog, Row, Col, CellItem),
+    cell_item(Dialog, input, Row, Col, CellItem),
     get(CellItem, selection, Sel0),
     % Normaliza selection a un átomo para parsear.
     (   Sel0 == @nil
@@ -199,7 +202,7 @@ gui_apply_solution(Dialog, GivenMask, Solution) :-
                     ->  true
                     ;   nth1(Row, Solution, SolRow),
                         nth1(Col, SolRow, Val),
-                        cell_item(Dialog, Row, Col, CellItem),
+                        cell_item(Dialog, input, Row, Col, CellItem),
                         number_string(Val, S),
                         send(CellItem, selection, S)
                     )
