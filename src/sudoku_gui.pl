@@ -20,32 +20,47 @@ cell_item(Dialog, Prefix, Row, Col, CellItem) :-
     cell_name(Prefix, Row, Col, NameAtom),
     get(Dialog, member, NameAtom, CellItem).
 
-% Abre la ventana principal con la grilla y el botón Resolver.
+% Abre la ventana principal con las dos grillas (input y result) y el botón Resolver.
 open_gui :-
-    % Crea el diálogo principal.
+    % Crea el diálogo principal con tamaño ajustado para ambas grillas.
     new(Dialog, dialog('Sudoku Solver')),
+    send(Dialog, size, size(780, 460)),
 
-    % Crea la grilla 9x9 de campos de texto.
+    % === Grilla INPUT (izquierda) con OffsetX 0 ===
+    % Crea la grilla 9x9 de campos de texto para entrada.
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
-                  create_cell(Dialog, input, Row, Col))),
+                  create_cell(Dialog, input, Row, Col, 0))),
 
-    % Dibuja separadores gruesos entre bloques 3x3.
-    draw_block_divider(Dialog, vertical, 124),
-    draw_block_divider(Dialog, vertical, 238),
-    draw_block_divider(Dialog, horizontal, 124),
-    draw_block_divider(Dialog, horizontal, 238),
+    % Dibuja separadores gruesos entre bloques 3x3 para la grilla input.
+    draw_block_divider(Dialog, vertical, 124, 0),
+    draw_block_divider(Dialog, vertical, 238, 0),
 
-    % Crea el botón Resolver y lo posiciona debajo de la grilla.
+    % === Grilla RESULT (derecha) con OffsetX 400 ===
+    % Crea la grilla 9x9 de campos de texto para resultados.
+    forall(between(1, 9, Row),
+           forall(between(1, 9, Col),
+                  create_cell(Dialog, result, Row, Col, 400))),
+
+    % Dibuja separadores gruesos entre bloques 3x3 para la grilla result.
+    draw_block_divider(Dialog, vertical, 124, 400),
+    draw_block_divider(Dialog, vertical, 238, 400),
+
+    % Separadores horizontales (comunes para ambas grillas).
+    draw_block_divider(Dialog, horizontal, 124, 0),
+    draw_block_divider(Dialog, horizontal, 238, 0),
+
+    % Crea el botón Resolver y lo posiciona centrado debajo de las dos grillas.
     new(ResolverBtn, button('Resolver', message(@prolog, on_resolver_click, Dialog))),
-    send(Dialog, display, ResolverBtn, point(10, 396)),
+    send(Dialog, display, ResolverBtn, point(350, 396)),
 
     % Abre la ventana en una posición razonable.
     send(Dialog, open, point(50, 50)).
 
 % Crea una celda editable (text_item) en una posición de la grilla.
 % Prefix puede ser 'input' para celdas de entrada o 'result' para la grilla de resultados.
-create_cell(Dialog, Prefix, Row, Col) :-
+% OffsetX es el desplazamiento horizontal para dibujar la grilla completa en otra posición X.
+create_cell(Dialog, Prefix, Row, Col, OffsetX) :-
     % El nombre del item sirve para identificarlo dentro del Dialog.
     cell_name(Prefix, Row, Col, NameAtom),
     new(CellItem, text_item(NameAtom, '')),
@@ -59,9 +74,10 @@ create_cell(Dialog, Prefix, Row, Col) :-
     send(CellItem, size, size(34, 34)),
     % Fuente monoespaciada para que los dígitos se vean uniformes.
     send(CellItem, font, font(pixels, monospaced, 14)),
-    % Calcula posición absoluta y muestra el widget.
+    % Calcula posición absoluta (con OffsetX) y muestra el widget.
     get_row_y(Row, Y),
-    get_col_x(Col, X),
+    get_col_x(Col, XBase),
+    X is XBase + OffsetX,
     send(Dialog, display, CellItem, point(X, Y)).
 
 % Calcula la coordenada Y de una fila.
@@ -75,15 +91,18 @@ get_col_x(Col, X) :-
     X is (Col - 1) * 38 + 10.
 
 % Dibuja una línea separadora para marcar bloques 3x3.
-draw_block_divider(Dialog, vertical, X) :-
+% OffsetX es el desplazamiento horizontal para dibujar la grilla completa en otra posición X.
+draw_block_divider(Dialog, vertical, XBase, OffsetX) :-
     % Línea vertical de arriba a abajo de la grilla.
     !,
+    X is XBase + OffsetX,
     new(L, line(X, 10, X, 348)),
     send(L, pen, 2),
     send(L, colour, colour('#666666')),
     send(Dialog, display, L).
-draw_block_divider(Dialog, horizontal, Y) :-
+draw_block_divider(Dialog, horizontal, Y, _OffsetX) :-
     % Línea horizontal de izquierda a derecha de la grilla.
+    % Y es igual para ambas grillas (comparten el mismo eje Y).
     new(L, line(10, Y, 348, Y)),
     send(L, pen, 2),
     send(L, colour, colour('#666666')),
