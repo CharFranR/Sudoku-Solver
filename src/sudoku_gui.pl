@@ -46,11 +46,20 @@ open_gui :-
     draw_block_divider(Dialog, vertical, 124, 400),
     draw_block_divider(Dialog, vertical, 238, 400),
 
-    % Separadores horizontales para AMBAS grillas (input y result).
-    draw_block_divider(Dialog, horizontal, 124, 0),
-    draw_block_divider(Dialog, horizontal, 238, 0),
-    draw_block_divider(Dialog, horizontal, 124, 400),
-    draw_block_divider(Dialog, horizontal, 238, 400),
+    % Headers de texto para las grillas.
+    new(Text1, text('Ingresar datos')),
+    send(Text1, font, font(pixels, bold, 16)),
+    send(Dialog, display, Text1, point(10, 10)),
+
+    new(Text2, text('Resultados')),
+    send(Text2, font, font(pixels, bold, 16)),
+    send(Dialog, display, Text2, point(410, 10)),
+
+    % Separadores horizontales para AMBAS grillas (input y result) - ajustados por headers (+30).
+    draw_block_divider(Dialog, horizontal, 154, 0),
+    draw_block_divider(Dialog, horizontal, 268, 0),
+    draw_block_divider(Dialog, horizontal, 154, 400),
+    draw_block_divider(Dialog, horizontal, 268, 400),
 
     % Crea el botón Resolver y el botón Limpiar Todo.
     new(ResolverBtn, button('Resolver', message(@prolog, on_resolver_click, Dialog))),
@@ -87,8 +96,8 @@ create_cell(Dialog, Prefix, Row, Col, OffsetX) :-
 
 % Calcula la coordenada Y de una fila.
 get_row_y(Row, Y) :-
-    % 38 es el paso (tamaño + separación), 10 es el margen superior.
-    Y is (Row - 1) * 38 + 10.
+    % 38 es el paso (tamaño + separación), 40 es el margen superior (ajustado por headers).
+    Y is (Row - 1) * 38 + 40.
 
 % Calcula la coordenada X de una columna.
 get_col_x(Col, X) :-
@@ -98,10 +107,10 @@ get_col_x(Col, X) :-
 % Dibuja una línea separadora para marcar bloques 3x3.
 % OffsetX es el desplazamiento horizontal para dibujar la grilla completa en otra posición X.
 draw_block_divider(Dialog, vertical, XBase, OffsetX) :-
-    % Línea vertical de arriba a abajo de la grilla.
+    % Línea vertical de arriba a abajo de la grilla (ajustada por headers).
     !,
     X is XBase + OffsetX,
-    new(L, line(X, 10, X, 348)),
+    new(L, line(X, 40, X, 378)),
     send(L, pen, 2),
     send(L, colour, colour('#666666')),
     send(Dialog, display, L).
