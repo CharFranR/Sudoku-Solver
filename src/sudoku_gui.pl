@@ -24,7 +24,7 @@ cell_item(Dialog, Prefix, Row, Col, CellItem) :-
 open_gui :-
     % Crea el diálogo principal con tamaño ajustado para ambas grillas.
     new(Dialog, dialog('Sudoku Solver')),
-    send(Dialog, size, size(780, 460)),
+    send(Dialog, size, size(780, 520))),
 
     % === Grilla INPUT (izquierda) con OffsetX 0 ===
     % Crea la grilla 9x9 de campos de texto para entrada.
@@ -63,10 +63,26 @@ open_gui :-
 
     % Crea el botón Resolver y el botón Limpiar Todo.
     new(ResolverBtn, button('Resolver', message(@prolog, on_resolver_click, Dialog))),
-    send(Dialog, display, ResolverBtn, point(320, 396)),
+    send(Dialog, display, ResolverBtn, point(320, 430)),
 
     new(ClearBtn, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog))),
-    send(Dialog, display, ClearBtn, point(450, 396)),
+    send(Dialog, display, ClearBtn, point(450, 430)),
+
+    % Botones de ejercicios predefinidos.
+    new(Ex1, button('Ejercicio 1', message(@prolog, load_exercise, Dialog, 1))),
+    send(Dialog, display, Ex1, point(10, 470)),
+
+    new(Ex2, button('Ejercicio 2', message(@prolog, load_exercise, Dialog, 2))),
+    send(Dialog, display, Ex2, point(160, 470)),
+
+    new(Ex3, button('Ejercicio 3', message(@prolog, load_exercise, Dialog, 3))),
+    send(Dialog, display, Ex3, point(310, 470)),
+
+    new(Ex4, button('Ejercicio 4', message(@prolog, load_exercise, Dialog, 4))),
+    send(Dialog, display, Ex4, point(460, 470)),
+
+    new(Ex5, button('Ejercicio 5', message(@prolog, load_exercise, Dialog, 5))),
+    send(Dialog, display, Ex5, point(610, 470)),
 
     % Abre la ventana en una posición razonable.
     send(Dialog, open, point(50, 50)).
