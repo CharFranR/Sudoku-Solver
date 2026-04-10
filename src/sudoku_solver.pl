@@ -1,7 +1,8 @@
 :- module(sudoku_solver,
           [ solve_status/3,
             solve_one/2,
-            has_multiple_solutions/2
+            has_multiple_solutions/2,
+            exercise/2
           ]).
 
 :- use_module(library(clpfd)).

@@ -25,7 +25,7 @@ cell_item(Dialog, Prefix, Row, Col, CellItem) :-
 open_gui :-
     % Crea el diálogo principal con tamaño ajustado para ambas grillas.
     new(Dialog, dialog('Sudoku Solver')),
-    send(Dialog, size, size(780, 520))),
+    send(Dialog, size, size(780, 520)).
 
     % === Grilla INPUT (izquierda) con OffsetX 0 ===
     % Crea la grilla 9x9 de campos de texto para entrada.
