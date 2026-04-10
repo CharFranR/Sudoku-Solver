@@ -1,7 +1,8 @@
 :- module(sudoku_gui,
           [ open_gui/0,
             gui_read_board/3,
-            gui_apply_solution/3
+            gui_apply_solution/3,
+            load_exercise/2
           ]).
 
 :- use_module(library(pce)).
@@ -280,3 +281,21 @@ gui_apply_solution(Dialog, _GivenMask, Solution) :-
                     number_string(Val, S),
                     send(CellItem, selection, S)
                   ))).
+
+% === Handler para cargar ejercicios predefinidos ===
+% load_exercise(Dialog, N): limpia grids y carga el exercise N en la grilla input.
+load_exercise(Dialog, N) :-
+    % Limpia ambas grillas.
+    clear_input_grid(Dialog),
+    clear_result_grid(Dialog),
+    % Obtiene el tablero del ejercicio N.
+    exercise(N, Board),
+    % Itera sobre el tablero y filled las celdas non-vacías.
+    forall( ( nth1(Row, Board, RowList),
+            nth1(Col, RowList, Val),
+            Val > 0
+          ),
+          ( cell_item(Dialog, input, Row, Col, CellItem),
+            number_string(Val, S),
+            send(CellItem, selection, S)
+          )).
