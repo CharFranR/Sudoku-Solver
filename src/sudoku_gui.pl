@@ -108,8 +108,19 @@ draw_block_divider(Dialog, horizontal, Y, _OffsetX) :-
     send(L, colour, colour('#666666')),
     send(Dialog, display, L).
 
+% Limpia la grilla result (establece todas las celdas a vacío).
+clear_result_grid(Dialog) :-
+    Prefix = result,
+    forall(between(1, 9, Row),
+           forall(between(1, 9, Col),
+                  ( cell_item(Dialog, Prefix, Row, Col, CellItem),
+                    send(CellItem, selection, '')
+                  ))).
+
 % Handler del botón Resolver: lee, resuelve y actualiza la grilla.
 on_resolver_click(Dialog) :-
+    % Primero limpia la grilla de resultados.
+    clear_result_grid(Dialog),
     % Captura excepciones (por ejemplo, input inválido en una celda).
     catch(
         (   gui_read_board(Dialog, Board, GivenMask),
@@ -154,38 +165,39 @@ handle_status(_Dialog, inconsistent(Reason), _Solution, _GivenMask) :-
 
 % Lee la grilla XPCE y produce el Board (0..9) y una máscara de pistas.
 gui_read_board(Dialog, Board, GivenMask) :-
+    Prefix = input,
     % Construye el tablero fila por fila.
     findall(RowCells,
             ( between(1, 9, Row),
-              read_row(Dialog, Row, RowCells, _RowMask)
+              read_row(Dialog, Prefix, Row, RowCells, _RowMask)
             ),
             Board),
     % Construye la máscara de pistas (true si el usuario ingresó un dígito).
     findall(RowMask,
             ( between(1, 9, Row),
-              read_row(Dialog, Row, _RowCells, RowMask)
+              read_row(Dialog, Prefix, Row, _RowCells, RowMask)
             ),
             GivenMask).
 
 % Lee una fila completa (valores y máscara).
-read_row(Dialog, Row, RowCells, RowMask) :-
+read_row(Dialog, Prefix, Row, RowCells, RowMask) :-
     % Lee los 9 valores.
     findall(Cell,
             ( between(1, 9, Col),
-              read_cell(Dialog, Row, Col, Cell, _Clue)
+              read_cell(Dialog, Prefix, Row, Col, Cell, _Clue)
             ),
             RowCells),
     % Lee la máscara de pistas.
     findall(Clue,
             ( between(1, 9, Col),
-              read_cell(Dialog, Row, Col, _Cell, Clue)
+              read_cell(Dialog, Prefix, Row, Col, _Cell, Clue)
             ),
             RowMask).
 
 % Lee una celda y la interpreta como 0 (vacío) o 1..9 (pista/valor).
-read_cell(Dialog, Row, Col, Cell, Clue) :-
+read_cell(Dialog, Prefix, Row, Col, Cell, Clue) :-
     % Obtiene el widget y su texto.
-    cell_item(Dialog, input, Row, Col, CellItem),
+    cell_item(Dialog, Prefix, Row, Col, CellItem),
     get(CellItem, selection, Sel0),
     % Normaliza selection a un átomo para parsear.
     (   Sel0 == @nil
@@ -210,19 +222,15 @@ read_cell(Dialog, Row, Col, Cell, Clue) :-
         throw(invalid_cell(Row, Col, Sel0))
     ).
 
-% Aplica la solución a la grilla sin sobreescribir pistas del usuario.
-gui_apply_solution(Dialog, GivenMask, Solution) :-
-    % Recorre todas las celdas y escribe solo donde GivenMask sea false.
+% Aplica la solución a la grilla result (ignora GivenMask - escribe todas las celdas).
+gui_apply_solution(Dialog, _GivenMask, Solution) :-
+    Prefix = result,
+    % Recorre todas las celdas y escribe el valor de la solución.
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
-                  ( nth1(Row, GivenMask, MaskRow),
-                    nth1(Col, MaskRow, IsClue),
-                    (   IsClue == true
-                    ->  true
-                    ;   nth1(Row, Solution, SolRow),
-                        nth1(Col, SolRow, Val),
-                        cell_item(Dialog, input, Row, Col, CellItem),
-                        number_string(Val, S),
-                        send(CellItem, selection, S)
-                    )
+                  ( nth1(Row, Solution, SolRow),
+                    nth1(Col, SolRow, Val),
+                    cell_item(Dialog, Prefix, Row, Col, CellItem),
+                    number_string(Val, S),
+                    send(CellItem, selection, S)
                   ))).
