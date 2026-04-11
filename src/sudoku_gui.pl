@@ -32,17 +32,23 @@ open_gui :-
     new(Dialog, dialog('Sudoku Solver')),
     send(Dialog, gap, size(10, 5)),
 
-    % === Grillas en picture containers (posición absoluta adentro) ===
-    % Picture permite positioning absoluto pero es un widget que dialog puede layoutear.
+    % === Grillas en picture containers ===
+    % GridWidth/Height: tamaño exacto del contenido (celdas 9x9)
+    % Última celda: X=10+8*38=314, ancho=34 → right=348. Alto: Y=40+8*38=344, alto=20 → bottom=364
+    GridWidth = 360,
+    GridHeight = 370,
 
     % --- Grilla INPUT ---
     new(InputPic, picture),
     send(InputPic, name, input_cell_container),
-    send(InputPic, size, size(350, 370)),
+    send(InputPic, size, size(GridWidth, GridHeight)),
+    % Deshabilitar scrollbars
+    send(InputPic, hor_shrink, 0),
+    send(InputPic, ver_shrink, 0),
     % Headers
     new(T1, text('Ingresar datos')),
-    send(T1, font, font(pixels, bold, 16)),
-    send(InputPic, display, T1, point(0, 0)),
+    send(T1, font, font(pixels, bold, 14)),
+    send(InputPic, display, T1, point(10, 5)),
     % Celdas
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
@@ -52,21 +58,22 @@ open_gui :-
                     send(C, label, ''),
                     send(C, length, 1),
                     send(C, alignment, center),
-                    send(C, size, size(34, 34)),
+                    send(C, size, size(34, 20)),
                     send(C, font, font(pixels, monospaced, 14)),
                     send(InputPic, display, C, point(X, Y))
                   ))),
-    % Divisores
     draw_grid_dividers(InputPic, 10, 40, 38),
     send(Dialog, append, InputPic),
 
     % --- Grilla RESULT ---
     new(ResultPic, picture),
     send(ResultPic, name, result_cell_container),
-    send(ResultPic, size, size(350, 370)),
+    send(ResultPic, size, size(GridWidth, GridHeight)),
+    send(ResultPic, hor_shrink, 0),
+    send(ResultPic, ver_shrink, 0),
     new(T2, text('Resultados')),
-    send(T2, font, font(pixels, bold, 16)),
-    send(ResultPic, display, T2, point(0, 0)),
+    send(T2, font, font(pixels, bold, 14)),
+    send(ResultPic, display, T2, point(10, 5)),
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
                   ( get_row_y(Row, Y), get_col_x(Col, X),
@@ -75,7 +82,7 @@ open_gui :-
                     send(C, label, ''),
                     send(C, length, 1),
                     send(C, alignment, center),
-                    send(C, size, size(34, 34)),
+                    send(C, size, size(34, 20)),
                     send(C, font, font(pixels, monospaced, 14)),
                     send(ResultPic, display, C, point(X, Y))
                   ))),
