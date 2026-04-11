@@ -2,11 +2,14 @@
           [ solve_status/3,
             solve_one/2,
             has_multiple_solutions/2,
+            generate_puzzle/2,
             exercise/2
           ]).
 
 :- use_module(library(clpfd)).
 :- use_module(sudoku_validate).
+:- reexport(sudoku_validate).
+
 
 % Resuelve un Sudoku con validación previa y devuelve un estado.
 solve_status(Board, Status, Solution) :-
@@ -149,6 +152,117 @@ is_fully_filled(Board) :-
     forall(member(Row, Board),
            forall(member(Cell, Row),
                   Cell \== 0)).
+
+% === Puzzle Generator ===
+% Genera un puzzle Sudoku con solucion unica segun la dificultad.
+% Usa CLPFD para generar un tablero completo, luego remueve celdas
+% iterativamente verificando que siga teniendo solucion unica.
+
+%% generate_puzzle(+Difficulty, -Puzzle)
+%  Difficulty = easy | medium | hard
+%  Puzzle es un tablero 9x9 con 0 (vacío) y 1-9 (pistas) que tiene exactamente
+%  una solucion. El numero de pistas depende de la dificultad:
+%    - easy: 35-40 pistas
+%    - medium: 27-32 pistas
+%    - hard: 22-27 pistas
+generate_puzzle(Difficulty, Puzzle) :-
+    difficulty_clue_range(Difficulty, MinClues, MaxClues),
+    % 1. Genera un tablero completamente resuelto.
+    generate_complete_board(Complete),
+    % 2. Remueve celdas iterativamente hasta alcanzar el rango de pistas.
+    remove_cells_to_clues(Complete, MinClues, MaxClues, Puzzle).
+
+%% difficulty_clue_range(+Difficulty, -Min, -Max)
+%  Define el rango de pistas para cada dificultad.
+difficulty_clue_range(easy,  35, 40).
+difficulty_clue_range(medium, 27, 32).
+difficulty_clue_range(hard,  22, 27).
+
+%% generate_complete_board(-Board)
+%  Genera un tablero Sudoku completamente resuelto usando CLPFD.
+%  La variabilidad viene de random_permutation/2 en el proceso de remocion.
+generate_complete_board(Board) :-
+    % Crea la estructura del tablero con 81 variables.
+    Board = [R1,R2,R3,R4,R5,R6,R7,R8,R9],
+    maplist(row_vars(9), [R1,R2,R3,R4,R5,R6,R7,R8,R9]),
+    % Aplica restricciones Sudoku.
+    constrain_board(Board),
+    % Labeling para obtener una solucion.
+    append(Board, AllVars),
+    labeling([], AllVars).
+
+%% row_vars(+Length, -Row)
+%  Crea una fila de variables CLPFD.
+row_vars(Length, Row) :-
+    length(Row, Length),
+    maplist(in_, Row).
+
+%% remove_cells_to_clues(+Complete, +MinClues, +MaxClues, -Puzzle)
+%  Remueve celdas del tablero completo manteniendo solucion unica.
+remove_cells_to_clues(Complete, MinClues, MaxClues, Puzzle) :-
+    % Obtiene las posiciones de todas las celdas.
+    findall((R,C), (between(1,9,R), between(1,9,C)), Positions),
+    % Baraja las posiciones para removal aleatorio.
+    random_permutation(Positions, Shuffled),
+    % Remueve celdas iterativamente.
+    remove_iteratively(Shuffled, Complete, MinClues, MaxClues, Complete, Puzzle).
+
+%% remove_iteratively(+Positions, +Board, +MinClues, +MaxClues, +Current, -Puzzle)
+%  Itera sobre posiciones barajadas, removiendo celdas si la unicidad se mantiene.
+%  Board = tablero original completo (para leer valores originales)
+%  Current = tablero actual con remociones parciales
+remove_iteratively([], _Board, _MinClues, _MaxClues, Puzzle, Puzzle) :- !.
+remove_iteratively([_|Rest], _Board, MinClues, MaxClues, Current, Puzzle) :-
+    % Si ya estamos en el rango objetivo, terminamos.
+    count_clues(Current, Count),
+    Count >= MinClues,
+    Count =< MaxClues,
+    !,
+    Puzzle = Current.
+remove_iteratively([(R,C)|Rest], Board, MinClues, MaxClues, Current, Puzzle) :-
+    % Obtiene el valor actual de la celda.
+    nth1(R, Current, Row),
+    nth1(C, Row, Value),
+    Value \== 0,
+    % Crea tablero de prueba sin esta celda.
+    replace_cell(Current, R, C, 0, TrialBoard),
+    % Solo verifica unicidad si al remover caeriamos por debajo del min.
+    count_clues(TrialBoard, TrialCount),
+    (   TrialCount >= MinClues
+    ->  % Verifica que tenga solucion unica.
+        \+ has_multiple_solutions(TrialBoard, true)
+    ;   % Si al remover caeriamos por debajo del min, no vale la pena verificar.
+        fail
+    ),
+    !,
+    % Remocion exitosa, continuamos con el nuevo tablero.
+    remove_iteratively(Rest, Board, MinClues, MaxClues, TrialBoard, Puzzle).
+remove_iteratively([_|Rest], Board, MinClues, MaxClues, Current, Puzzle) :-
+    % No se pudo remover esta celda (ya era 0 o perdia unicidad),
+    % intentamos la siguiente.
+    remove_iteratively(Rest, Board, MinClues, MaxClues, Current, Puzzle).
+
+%% replace_cell(+Board, +Row, +Col, +Value, -NewBoard)
+%  Reemplaza una celda en el tablero.
+replace_cell(Board, Row, Col, Value, NewBoard) :-
+    nth1(Row, Board, OldRow),
+    replace_nth(OldRow, Col, Value, NewRow),
+    replace_nth(Board, Row, NewRow, NewBoard).
+
+%% replace_nth(+List, +Index, +Value, -NewList)
+%  Reemplaza el elemento en Index con Value.
+replace_nth([_|Rest], 1, Value, [Value|Rest]) :- !.
+replace_nth([H|T], Index, Value, [H|NewT]) :-
+    Index > 1,
+    Index1 is Index - 1,
+    replace_nth(T, Index1, Value, NewT).
+
+%% count_clues(+Board, -Count)
+%  Cuenta las celdas no vacias (pistas) en el tablero.
+count_clues(Board, Count) :-
+    flatten(Board, Cells),
+    exclude(=(0), Cells, Clues),
+    length(Clues, Count).
 
 % === Ejercicios predefinidos ===
 % exercise(N, Board): Board es un tablero 9x9 con valores 0 (vacío) o 1-9.
