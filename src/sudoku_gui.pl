@@ -16,109 +16,106 @@ cell_name(Prefix, Row, Col, NameAtom) :-
     atomic_list_concat([Prefix, '_cell_', Row, '_', Col], NameAtom).
 
 % Recupera el widget de una celda desde el Dialog.
-% Prefix puede ser 'input' para celdas de entrada o 'result' para la grilla de resultados.
+% Las celdas están dentro de picture containers (inputPic o resultPic).
 cell_item(Dialog, Prefix, Row, Col, CellItem) :-
-    % Cada celda fue creada con un name atom del estilo input_cell_R_C.
     cell_name(Prefix, Row, Col, NameAtom),
-    get(Dialog, member, NameAtom, CellItem).
+    % Busca en el picture container correspondiente
+    (   Prefix = input -> ContainerName = input_cell_container
+    ;   Prefix = result -> ContainerName = result_cell_container
+    ;   ContainerName = input_cell_container
+    ),
+    get(Dialog, member, ContainerName, Container),
+    get(Container, member, NameAtom, CellItem).
 
 % Abre la ventana principal con las dos grillas (input y result) y el botón Resolver.
 open_gui :-
-    % Crea el diálogo principal con tamaño ajustado para ambas grillas.
     new(Dialog, dialog('Sudoku Solver')),
-    send(Dialog, size, size(780, 520)),
+    send(Dialog, gap, size(10, 5)),
 
-    % === Grilla INPUT (izquierda) con OffsetX 0 ===
-    % Crea la grilla 9x9 de campos de texto para entrada.
+    % === Grillas en picture containers (posición absoluta adentro) ===
+    % Picture permite positioning absoluto pero es un widget que dialog puede layoutear.
+
+    % --- Grilla INPUT ---
+    new(InputPic, picture),
+    send(InputPic, name, input_cell_container),
+    send(InputPic, size, size(350, 370)),
+    % Headers
+    new(T1, text('Ingresar datos')),
+    send(T1, font, font(pixels, bold, 16)),
+    send(InputPic, display, T1, point(0, 0)),
+    % Celdas
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
-                  create_cell(Dialog, input, Row, Col, 0))),
+                  ( get_row_y(Row, Y), get_col_x(Col, X),
+                    cell_name(input, Row, Col, Name),
+                    new(C, text_item(Name, '')),
+                    send(C, label, ''),
+                    send(C, length, 1),
+                    send(C, alignment, center),
+                    send(C, size, size(34, 34)),
+                    send(C, font, font(pixels, monospaced, 14)),
+                    send(InputPic, display, C, point(X, Y))
+                  ))),
+    % Divisores
+    draw_grid_dividers(InputPic, 10, 40, 38),
+    send(Dialog, append, InputPic),
 
-    % Dibuja separadores gruesos entre bloques 3x3 para la grilla input.
-    draw_block_divider(Dialog, vertical, 124, 0),
-    draw_block_divider(Dialog, vertical, 238, 0),
-
-    % === Grilla RESULT (derecha) con OffsetX 400 ===
-    % Crea la grilla 9x9 de campos de texto para resultados.
+    % --- Grilla RESULT ---
+    new(ResultPic, picture),
+    send(ResultPic, name, result_cell_container),
+    send(ResultPic, size, size(350, 370)),
+    new(T2, text('Resultados')),
+    send(T2, font, font(pixels, bold, 16)),
+    send(ResultPic, display, T2, point(0, 0)),
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
-                  create_cell(Dialog, result, Row, Col, 400))),
+                  ( get_row_y(Row, Y), get_col_x(Col, X),
+                    cell_name(result, Row, Col, Name),
+                    new(C, text_item(Name, '')),
+                    send(C, label, ''),
+                    send(C, length, 1),
+                    send(C, alignment, center),
+                    send(C, size, size(34, 34)),
+                    send(C, font, font(pixels, monospaced, 14)),
+                    send(ResultPic, display, C, point(X, Y))
+                  ))),
+    draw_grid_dividers(ResultPic, 10, 40, 38),
+    send(Dialog, append, ResultPic, right),
 
-    % Dibuja separadores gruesos entre bloques 3x3 para la grilla result.
-    draw_block_divider(Dialog, vertical, 124, 400),
-    draw_block_divider(Dialog, vertical, 238, 400),
+    % === Botones con layout automático ===
+    send(Dialog, append, new(@bv, button('Resolver', message(@prolog, on_resolver_click, Dialog)))),
+    send(Dialog, append, new(button('Limpiar Todo', message(@prolog, on_clear_click, Dialog))), right),
 
-    % Headers de texto para las grillas.
-    new(Text1, text('Ingresar datos')),
-    send(Text1, font, font(pixels, bold, 16)),
-    send(Dialog, display, Text1, point(10, 10)),
+    % Ejercicios
+    new(ExHeader, text('Ejercicios:')),
+    send(ExHeader, font, font(pixels, bold, 12)),
+    send(Dialog, append, ExHeader),
+    forall(between(1, 5, N),
+           (  atomic_list_concat([' ', N, ' '], Lbl),
+              B = button(Lbl, message(@prolog, load_exercise, Dialog, N)),
+              (N = 1 -> send(Dialog, append, new(B))
+              ;        send(Dialog, append, new(B), right))
+           )),
 
-    new(Text2, text('Resultados')),
-    send(Text2, font, font(pixels, bold, 16)),
-    send(Dialog, display, Text2, point(410, 10)),
+    % Puzzle
+    new(PuHeader, text('Puzzle:')),
+    send(PuHeader, font, font(pixels, bold, 12)),
+    send(Dialog, append, PuHeader),
+    send(Dialog, append, new(button('Easy',   message(@prolog, on_new_puzzle_click, Dialog, easy)))),
+    send(Dialog, append, new(button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium))), right),
+    send(Dialog, append, new(button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard))), right),
+    send(Dialog, append, new(button('Save',   message(@prolog, on_save_click, Dialog))), right),
+    send(Dialog, append, new(button('Open',   message(@prolog, on_open_click, Dialog))), right),
 
-    % Separadores horizontales para AMBAS grillas (input y result) - ajustados por headers (+30).
-    draw_block_divider(Dialog, horizontal, 154, 0),
-    draw_block_divider(Dialog, horizontal, 268, 0),
-    draw_block_divider(Dialog, horizontal, 154, 400),
-    draw_block_divider(Dialog, horizontal, 268, 400),
-
-    % === Panel inferior: botones y status ===
-    % BaseY = donde empiezan los botones (pegado a las grillas)
-    BaseY = 395,
-
-    % --- Fila 1: Resolver + Limpiar ---
-    BtnCenterX = 200,
-    new(ResolverBtn, button('Resolver', message(@prolog, on_resolver_click, Dialog))),
-    send(Dialog, display, ResolverBtn, point(BtnCenterX, BaseY)),
-
-    new(ClearBtn, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog))),
-    send(Dialog, display, ClearBtn, point(BtnCenterX + 110, BaseY)),
-
-    % --- Fila 2: Ejercicios ---
-    ExY is BaseY + 35,
-    ExCenterX = 160,
-    new(Ex1, button(' 1 ', message(@prolog, load_exercise, Dialog, 1))),
-    send(Dialog, display, Ex1, point(ExCenterX, ExY)),
-    new(Ex2, button(' 2 ', message(@prolog, load_exercise, Dialog, 2))),
-    send(Dialog, display, Ex2, point(ExCenterX + 55, ExY)),
-    new(Ex3, button(' 3 ', message(@prolog, load_exercise, Dialog, 3))),
-    send(Dialog, display, Ex3, point(ExCenterX + 110, ExY)),
-    new(Ex4, button(' 4 ', message(@prolog, load_exercise, Dialog, 4))),
-    send(Dialog, display, Ex4, point(ExCenterX + 165, ExY)),
-    new(Ex5, button(' 5 ', message(@prolog, load_exercise, Dialog, 5))),
-    send(Dialog, display, Ex5, point(ExCenterX + 220, ExY)),
-
-    % --- Fila 3: Puzzle + Save/Open ---
-    PuY is ExY + 35,
-    PuLeftX = 160,
-    new(NewPuzzleLabel, text('Puzzle:')),
-    send(NewPuzzleLabel, font, font(pixels, bold, 12)),
-    send(Dialog, display, NewPuzzleLabel, point(PuLeftX, PuY + 3)),
-
-    new(EasyBtn, button('Easy', message(@prolog, on_new_puzzle_click, Dialog, easy))),
-    send(Dialog, display, EasyBtn, point(PuLeftX + 65, PuY)),
-    new(MediumBtn, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium))),
-    send(Dialog, display, MediumBtn, point(PuLeftX + 140, PuY)),
-    new(HardBtn, button('Hard', message(@prolog, on_new_puzzle_click, Dialog, hard))),
-    send(Dialog, display, HardBtn, point(PuLeftX + 240, PuY)),
-
-    new(SaveBtn, button('Save', message(@prolog, on_save_click, Dialog))),
-    send(Dialog, display, SaveBtn, point(PuLeftX + 360, PuY)),
-    new(OpenBtn, button('Open', message(@prolog, on_open_click, Dialog))),
-    send(Dialog, display, OpenBtn, point(PuLeftX + 440, PuY)),
-
-    % --- Fila 4: Status bar ---
-    StY is PuY + 35,
+    % Status
     new(StatusLabel, text_item(status_label, 'Listo')),
     send(StatusLabel, font, font(pixels, normal, 10)),
     send(StatusLabel, colour, colour(darkblue)),
     send(StatusLabel, editable, @off),
-    send(StatusLabel, length, 55),
-    send(Dialog, display, StatusLabel, point(PuLeftX, StY)),
+    send(StatusLabel, length, 50),
+    send(Dialog, append, StatusLabel),
 
-    % Abre la ventana en una posición razonable.
-    send(Dialog, open, point(50, 50)).
+    send(Dialog, open).
 
 % Crea una celda editable (text_item) en una posición de la grilla.
 % Prefix puede ser 'input' para celdas de entrada o 'result' para la grilla de resultados.
@@ -164,14 +161,35 @@ draw_block_divider(Dialog, vertical, XBase, OffsetX) :-
     send(L, colour, colour('#666666')),
     send(Dialog, display, L).
 draw_block_divider(Dialog, horizontal, Y, OffsetX) :-
-    % Línea horizontal de izquierda a derecha de la grilla.
-    % OffsetX desplaza la línea para la grilla correspondiente.
     XStart is 10 + OffsetX,
     XEnd is 348 + OffsetX,
     new(L, line(XStart, Y, XEnd, Y)),
     send(L, pen, 2),
     send(L, colour, colour('#666666')),
     send(Dialog, display, L).
+
+%% draw_grid_dividers(+Container, +OriginX, +OriginY, +Step)
+%  Dibuja las 4 líneas divisorias de bloques 3x3 en un picture container.
+draw_grid_dividers(Container, OX, OY, Step) :-
+    % Líneas verticales: entre columnas 3-4 y 6-7
+    VX1 is OX + 3 * Step - 2,
+    VX2 is OX + 6 * Step - 2,
+    VBottom is OY + 9 * Step,
+    draw_line(Container, VX1, OY, VX1, VBottom),
+    draw_line(Container, VX2, OY, VX2, VBottom),
+    % Líneas horizontales: entre filas 3-4 y 6-7
+    HY1 is OY + 3 * Step - 2,
+    HY2 is OY + 6 * Step - 2,
+    HRight is OX + 9 * Step,
+    draw_line(Container, OX, HY1, HRight, HY1),
+    draw_line(Container, OX, HY2, HRight, HY2).
+
+%% draw_line(+Container, +X1, +Y1, +X2, +Y2)
+draw_line(Container, X1, Y1, X2, Y2) :-
+    new(L, line(X1, Y1, X2, Y2)),
+    send(L, pen, 2),
+    send(L, colour, colour('#666666')),
+    send(Container, display, L).
 
 % Limpia la grilla result (establece todas las celdas a vacío).
 clear_result_grid(Dialog) :-
