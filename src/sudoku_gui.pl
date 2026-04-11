@@ -18,7 +18,7 @@ cell_item(Dialog, Prefix, Row, Col, CellItem) :-
 
 open_gui :-
     new(Dialog, dialog('Sudoku Solver')),
-    send(Dialog, size, size(780, 540)),
+    send(Dialog, size, size(780, 580)),
 
     % === Grilla INPUT ===
     forall(between(1, 9, Row),
@@ -41,43 +41,33 @@ open_gui :-
     send(T2, font, font(pixels, bold, 14)),
     send(Dialog, display, T2, point(410, 10)),
 
-    % === Fila 1: Resolver + Limpiar (centrados) ===
+    % === Fila 1: Resolver + Limpiar ===
     BtnY = 405,
-    CX is 390 - 55,  % Centro de la ventana menos mitad del ancho de botón
-    new(BtnR, button('Resolver', message(@prolog, on_resolver_click, Dialog))),
-    send(Dialog, display, BtnR, point(CX, BtnY)),
-    new(BtnC, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog))),
-    send(Dialog, display, BtnC, point(CX + 110, BtnY)),
+    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(300, BtnY)),
+    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(410, BtnY)),
 
-    % === Fila 2: Ejercicios (centrados) ===
-    ExY = BtnY + 32,
-    ExCX = 255,  % Centro X para ejercicios
+    % === Fila 2: Ejercicios 1-5 ===
+    ExY = 440,
     forall(between(1, 5, N),
-           (  atomic_list_concat([N], Lbl),
-              XX is ExCX + (N - 3) * 45,
-              new(BtnE, button(Lbl, message(@prolog, load_exercise, Dialog, N))),
-              send(Dialog, display, BtnE, point(XX, ExY))
+           (  XX is 230 + (N - 1) * 65,
+              send(Dialog, display, button(N, message(@prolog, load_exercise, Dialog, N)), point(XX, ExY))
            )),
 
-    % === Fila 3: Puzzle + Save/Open ===
-    PuY = ExY + 32,
-    PuCX = 225,
-    new(PuLbl, text('Puzzle:')),
-    send(PuLbl, font, font(pixels, bold, 11)),
-    send(Dialog, display, PuLbl, point(PuCX - 50, PuY + 2)),
-    new(BtnEz, button('Easy', message(@prolog, on_new_puzzle_click, Dialog, easy))),
-    send(Dialog, display, BtnEz, point(PuCX, PuY)),
-    new(BtnMd, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium))),
-    send(Dialog, display, BtnMd, point(PuCX + 80, PuY)),
-    new(BtnHd, button('Hard', message(@prolog, on_new_puzzle_click, Dialog, hard))),
-    send(Dialog, display, BtnHd, point(PuCX + 185, PuY)),
-    new(BtnSv, button('Save', message(@prolog, on_save_click, Dialog))),
-    send(Dialog, display, BtnSv, point(PuCX + 340, PuY)),
-    new(BtnOp, button('Open', message(@prolog, on_open_click, Dialog))),
-    send(Dialog, display, BtnOp, point(PuCX + 420, PuY)),
+    % === Fila 3: Puzzle (Easy/Med/Hard) ===
+    PuY = 475,
+    send(Dialog, display, new(TxtPu, text('Puzzle:')), point(175, PuY + 2)),
+    send(TxtPu, font, font(pixels, bold, 12)),
+    send(Dialog, display, button('Easy',   message(@prolog, on_new_puzzle_click, Dialog, easy)),   point(245, PuY)),
+    send(Dialog, display, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium)), point(325, PuY)),
+    send(Dialog, display, button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard)),   point(420, PuY)),
+
+    % === Fila 4: Save + Open ===
+    SvY = 510,
+    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(320, SvY)),
+    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(410, SvY)),
 
     % === Status bar ===
-    StY = PuY + 32,
+    StY = 545,
     new(StatusLabel, text_item(status_label, 'Listo')),
     send(StatusLabel, font, font(pixels, normal, 10)),
     send(StatusLabel, colour, colour(darkblue)),
