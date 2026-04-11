@@ -18,7 +18,7 @@ cell_item(Dialog, Prefix, Row, Col, CellItem) :-
 
 open_gui :-
     new(Dialog, dialog('Sudoku Solver')),
-    send(Dialog, size, size(780, 580)),
+    send(Dialog, size, size(780, 530)),
 
     % === Grilla INPUT ===
     forall(between(1, 9, Row),
@@ -41,42 +41,33 @@ open_gui :-
     send(T2, font, font(pixels, bold, 14)),
     send(Dialog, display, T2, point(410, 10)),
 
-    % === PANEL DE BOTONES — Secciones con etiquetas ===
-    % Centro de la ventana = 390. Cada sección tiene su label y sus botones.
+    % === PANEL DE BOTONES ===
+    Row1Y = 410,
 
-    % --- Sección: Acciones ---
-    Sec1Y = 400,
-    send(Dialog, display, new(Lbl1, text('Acciones:')), point(300, Sec1Y)),
-    send(Lbl1, font, font(pixels, bold, 11)),
-    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(300, Sec1Y + 18)),
-    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(410, Sec1Y + 18)),
-
-    % --- Sección: Ejercicios ---
-    Sec2Y = 445,
-    send(Dialog, display, new(Lbl2, text('Ejercicios:')), point(300, Sec2Y)),
-    send(Lbl2, font, font(pixels, bold, 11)),
+    % --- Izquierda: Ejercicios ---
+    send(Dialog, display, new(LblEx, text('Ejercicios:')), point(10, Row1Y)),
+    send(LblEx, font, font(pixels, bold, 12)),
     forall(between(1, 5, N),
-           (  XX is 300 + (N - 1) * 60,
-              send(Dialog, display, button(N, message(@prolog, load_exercise, Dialog, N)), point(XX, Sec2Y + 18))
+           (  XX is 100 + (N - 1) * 55,
+              send(Dialog, display, button(N, message(@prolog, load_exercise, Dialog, N)), point(XX, Row1Y))
            )),
 
-    % --- Sección: Nuevo Puzzle ---
-    Sec3Y = 490,
-    send(Dialog, display, new(Lbl3, text('Nuevo Puzzle:')), point(300, Sec3Y)),
-    send(Lbl3, font, font(pixels, bold, 11)),
-    send(Dialog, display, button('Easy',   message(@prolog, on_new_puzzle_click, Dialog, easy)),   point(300, Sec3Y + 18)),
-    send(Dialog, display, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium)), point(390, Sec3Y + 18)),
-    send(Dialog, display, button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard)),   point(485, Sec3Y + 18)),
+    % --- Derecha: Nuevo Puzzle ---
+    send(Dialog, display, new(LblPu, text('Nuevo Puzzle:')), point(420, Row1Y)),
+    send(LblPu, font, font(pixels, bold, 12)),
+    send(Dialog, display, button('Easy',   message(@prolog, on_new_puzzle_click, Dialog, easy)),   point(540, Row1Y)),
+    send(Dialog, display, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium)), point(620, Row1Y)),
+    send(Dialog, display, button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard)),   point(715, Row1Y)),
 
-    % --- Sección: Archivo ---
-    Sec4Y = Sec3Y,
-    send(Dialog, display, new(Lbl4, text('Archivo:')), point(580, Sec4Y)),
-    send(Lbl4, font, font(pixels, bold, 11)),
-    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(580, Sec4Y + 18)),
-    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(660, Sec4Y + 18)),
+    % --- Fila inferior: Acciones + Status ---
+    Row2Y = 450,
+    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(10, Row2Y)),
+    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(120, Row2Y)),
+    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(540, Row2Y)),
+    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(620, Row2Y)),
 
     % --- Status ---
-    StY = 540,
+    StY = 490,
     new(StatusLabel, text_item(status_label, 'Listo')),
     send(StatusLabel, font, font(pixels, normal, 10)),
     send(StatusLabel, colour, colour(darkblue)),
