@@ -212,7 +212,7 @@ remove_cells_to_clues(Complete, MinClues, MaxClues, Puzzle) :-
 %  Board = tablero original completo (para leer valores originales)
 %  Current = tablero actual con remociones parciales
 remove_iteratively([], _Board, _MinClues, _MaxClues, Puzzle, Puzzle) :- !.
-remove_iteratively([_|Rest], _Board, MinClues, MaxClues, Current, Puzzle) :-
+remove_iteratively(_, _Board, MinClues, MaxClues, Current, Puzzle) :-
     % Si ya estamos en el rango objetivo, terminamos.
     count_clues(Current, Count),
     Count >= MinClues,

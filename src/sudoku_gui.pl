@@ -26,7 +26,7 @@ cell_item(Dialog, Prefix, Row, Col, CellItem) :-
 open_gui :-
     % Crea el diálogo principal con tamaño ajustado para ambas grillas.
     new(Dialog, dialog('Sudoku Solver')),
-    send(Dialog, size, size(780, 560)),
+    send(Dialog, size, size(780, 580)),
 
     % === Grilla INPUT (izquierda) con OffsetX 0 ===
     % Crea la grilla 9x9 de campos de texto para entrada.
@@ -63,56 +63,73 @@ open_gui :-
     draw_block_divider(Dialog, horizontal, 154, 400),
     draw_block_divider(Dialog, horizontal, 268, 400),
 
-    % Crea el botón Resolver y el botón Limpiar Todo.
+    % === Fila 1: Acciones principales ===
     new(ResolverBtn, button('Resolver', message(@prolog, on_resolver_click, Dialog))),
-    send(Dialog, display, ResolverBtn, point(320, 430)),
+    send(Dialog, display, ResolverBtn, point(10, 400)),
 
     new(ClearBtn, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog))),
-    send(Dialog, display, ClearBtn, point(450, 430)),
+    send(Dialog, display, ClearBtn, point(130, 400)),
 
-    % Botones de ejercicios predefinidos.
-    new(Ex1, button('Ejercicio 1', message(@prolog, load_exercise, Dialog, 1))),
-    send(Dialog, display, Ex1, point(10, 470)),
+    % Separador visual
+    Sep1Y = 425,
+    new(Sep1, line(10, Sep1Y, 770, Sep1Y)),
+    send(Sep1, pen, 1), send(Sep1, colour, colour('#cccccc')),
+    send(Dialog, display, Sep1),
 
-    new(Ex2, button('Ejercicio 2', message(@prolog, load_exercise, Dialog, 2))),
-    send(Dialog, display, Ex2, point(160, 470)),
+    % === Fila 2: Ejercicios ===
+    new(ExLabel, text('Ejercicios:')),
+    send(ExLabel, font, font(pixels, bold, 12)),
+    send(Dialog, display, ExLabel, point(10, 435)),
 
-    new(Ex3, button('Ejercicio 3', message(@prolog, load_exercise, Dialog, 3))),
-    send(Dialog, display, Ex3, point(310, 470)),
+    new(Ex1, button('  1  ', message(@prolog, load_exercise, Dialog, 1))),
+    send(Dialog, display, Ex1, point(100, 432)),
 
-    new(Ex4, button('Ejercicio 4', message(@prolog, load_exercise, Dialog, 4))),
-    send(Dialog, display, Ex4, point(460, 470)),
+    new(Ex2, button('  2  ', message(@prolog, load_exercise, Dialog, 2))),
+    send(Dialog, display, Ex2, point(170, 432)),
 
-    new(Ex5, button('Ejercicio 5', message(@prolog, load_exercise, Dialog, 5))),
-    send(Dialog, display, Ex5, point(610, 470)),
+    new(Ex3, button('  3  ', message(@prolog, load_exercise, Dialog, 3))),
+    send(Dialog, display, Ex3, point(240, 432)),
 
-    % Botones de Nuevo Puzzle con dificultad
+    new(Ex4, button('  4  ', message(@prolog, load_exercise, Dialog, 4))),
+    send(Dialog, display, Ex4, point(310, 432)),
+
+    new(Ex5, button('  5  ', message(@prolog, load_exercise, Dialog, 5))),
+    send(Dialog, display, Ex5, point(380, 432)),
+
+    % Separador visual
+    Sep2Y = 465,
+    new(Sep2, line(10, Sep2Y, 770, Sep2Y)),
+    send(Sep2, pen, 1), send(Sep2, colour, colour('#cccccc')),
+    send(Dialog, display, Sep2),
+
+    % === Fila 3: Nuevo Puzzle + Save/Open ===
     new(NewPuzzleLabel, text('Nuevo Puzzle:')),
-    send(NewPuzzleLabel, font, font(pixels, bold, 10)),
-    send(Dialog, display, NewPuzzleLabel, point(10, 435)),
+    send(NewPuzzleLabel, font, font(pixels, bold, 12)),
+    send(Dialog, display, NewPuzzleLabel, point(10, 475)),
 
     new(EasyBtn, button('Easy', message(@prolog, on_new_puzzle_click, Dialog, easy))),
-    send(Dialog, display, EasyBtn, point(10, 455)),
+    send(Dialog, display, EasyBtn, point(130, 472)),
 
     new(MediumBtn, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium))),
-    send(Dialog, display, MediumBtn, point(110, 455)),
+    send(Dialog, display, MediumBtn, point(210, 472)),
 
     new(HardBtn, button('Hard', message(@prolog, on_new_puzzle_click, Dialog, hard))),
-    send(Dialog, display, HardBtn, point(220, 455)),
+    send(Dialog, display, HardBtn, point(310, 472)),
 
-    % Botones de Save y Open
+    % Save / Open
     new(SaveBtn, button('Save', message(@prolog, on_save_click, Dialog))),
-    send(Dialog, display, SaveBtn, point(400, 455)),
+    send(Dialog, display, SaveBtn, point(420, 472)),
 
     new(OpenBtn, button('Open', message(@prolog, on_open_click, Dialog))),
-    send(Dialog, display, OpenBtn, point(500, 455)),
+    send(Dialog, display, OpenBtn, point(510, 472)),
 
-    % Status widget para mensajes de feedback (no popups)
+    % === Status bar ===
     new(StatusLabel, text_item(status_label, 'Listo')),
     send(StatusLabel, font, font(pixels, normal, 10)),
     send(StatusLabel, colour, colour(darkblue)),
     send(StatusLabel, editable, @off),
-    send(Dialog, display, StatusLabel, point(10, 500)),
+    send(StatusLabel, length, 60),
+    send(Dialog, display, StatusLabel, point(10, 510)),
 
     % Abre la ventana en una posición razonable.
     send(Dialog, open, point(50, 50)).
@@ -140,8 +157,9 @@ create_cell(Dialog, Prefix, Row, Col, OffsetX) :-
     X is XBase + OffsetX,
     send(Dialog, display, CellItem, point(X, Y)),
     % Agrega validación en tiempo real solo para celdas de entrada (input).
+    % message se ejecuta al presionar Enter o Tab en la celda.
     (   Prefix = input
-    ->  send(CellItem, modified,
+    ->  send(CellItem, message,
             message(@prolog, validate_cell, Row, Col, Dialog))
     ;   true
     ).
