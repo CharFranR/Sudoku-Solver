@@ -24,6 +24,46 @@ Esto abre la ventana del Sudoku Solver con una grilla 9×9 vacía.
 2. **Resolver**: presionar el botón `Resolver` para resolver el puzzle.
 3. **Resultado**: la GUI completa SOLO las celdas vacías, preservando las pistas ingresadas.
 
+### Generación de Puzzles
+
+La GUI incluye un generador de puzzles con tres niveles de dificultad:
+
+- **Easy**: 35-40 pistas
+- **Medium**: 27-32 pistas
+- **Hard**: 22-27 pistas
+
+Para generar un nuevo puzzle, haga clic en el botón correspondiente a la dificultad deseada. El puzzle generado aparece automáticamente en la grilla de entrada.
+
+### Validación en Tiempo Real
+
+Mientras ingresa pistas, la aplicación valida automáticamente cada celda:
+
+- Si una celda tiene un conflicto (duplicado en fila, columna o bloque 3×3), su fondo se muestra en **rojo**
+- Al corregir el conflicto, el fondo vuelve a **blanco**
+- Las celdas vacías siempre se muestran con fondo normal
+
+### Guardar y Cargar
+
+Puede guardar el estado actual de la grilla en un archivo y cargarlo posteriormente:
+
+- **Save**: abre un diálogo para seleccionar dónde guardar el board actual
+- **Open**: abre un diálogo para cargar un board previamente guardado
+
+El formato de archivo es texto plano con 9 líneas de 9 enteros separados por espacios (0 = vacía).
+
+**Ejemplo de archivo guardado (`puzzle.txt`)**:
+```
+5 3 0 0 7 0 0 0 0
+6 0 0 1 9 5 0 0 0
+0 9 8 0 0 0 0 6 0
+8 0 0 0 6 0 0 0 3
+4 0 0 8 0 3 0 0 1
+7 0 0 0 2 0 0 0 6
+0 6 0 0 0 0 2 8 0
+0 0 0 4 1 9 0 0 5
+0 0 0 0 8 0 0 7 0
+```
+
 ## Verificación Manual
 
 Ejecutar las siguientes pruebas en el REPL de SWI-Prolog:
@@ -203,10 +243,11 @@ Ejecutar las siguientes pruebas en el REPL de SWI-Prolog:
 
 ```
 src/
-  sudoku_validate.pl  — Validación de board (forma, rango, consistencia)
-  sudoku_solver.pl    — Solver CLPFD + API de outcomes
-  sudoku_gui.pl       — GUI XPCE (grilla + botón Resolver)
-  main.pl             — Entry point (carga GUI y abre ventana)
+  sudoku_validate.pl     — Validación de board (forma, rango, consistencia)
+  sudoku_solver.pl       — Solver CLPFD + API de outcomes + generador de puzzles
+  sudoku_persistence.pl  — Guardado/carga de boards en archivos
+  sudoku_gui.pl          — GUI XPCE (grilla + botones + validación en tiempo real)
+  main.pl                — Entry point (carga módulos y abre ventana)
 ```
 
 ## Notas de Implementación
@@ -215,3 +256,6 @@ src/
 - El solver usa `library(clpfd)` para constraints declarativos
 - Múltiples soluciones: se enumeran hasta 2 soluciones (corte en 2) para detectar no unicidad
 - La GUI NO sobreescribe celdas que el usuario marcó como pistas (GivenMask)
+- Generación de puzzles: genera board completo con CLPFD, luego elimina celdas verificando unicidad
+- Validación en tiempo real: usa mensaje `modified` de XPCE en cada celda de entrada
+- Persistencia: formato de 9 líneas con enteros separados por espacios
