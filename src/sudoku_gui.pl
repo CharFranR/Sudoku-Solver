@@ -18,7 +18,7 @@ cell_item(Dialog, Prefix, Row, Col, CellItem) :-
 
 open_gui :-
     new(Dialog, dialog('Sudoku Solver')),
-    send(Dialog, size, size(780, 530)),
+    send(Dialog, size, size(780, 500)),
 
     % === Grilla INPUT ===
     forall(between(1, 9, Row),
@@ -59,20 +59,19 @@ open_gui :-
     send(Dialog, display, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium)), point(620, Row1Y)),
     send(Dialog, display, button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard)),   point(715, Row1Y)),
 
-    % --- Fila inferior: todo junto ---
+    % --- Fila inferior: Status a la izquierda, botones a la derecha ---
     Row2Y = 450,
-    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(10, Row2Y)),
-    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(120, Row2Y)),
-    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(260, Row2Y)),
-    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(340, Row2Y)),
-
-    % --- Status en la misma fila ---
     new(StatusLabel, text_item(status_label, 'Listo')),
     send(StatusLabel, font, font(pixels, normal, 10)),
     send(StatusLabel, colour, colour(darkblue)),
     send(StatusLabel, editable, @off),
-    send(StatusLabel, length, 30),
-    send(Dialog, display, StatusLabel, point(420, Row2Y)),
+    send(StatusLabel, length, 25),
+    send(Dialog, display, StatusLabel, point(10, Row2Y)),
+
+    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(380, Row2Y)),
+    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(490, Row2Y)),
+    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(630, Row2Y)),
+    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(710, Row2Y)),
 
     send(Dialog, open, point(50, 50)).
 
