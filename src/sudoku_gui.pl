@@ -41,38 +41,42 @@ open_gui :-
     send(T2, font, font(pixels, bold, 14)),
     send(Dialog, display, T2, point(410, 10)),
 
-    % === PANEL DE BOTONES ===
-    % Centro de la ventana = 390. Todo se alinea respecto a este punto.
+    % === PANEL DE BOTONES — Secciones con etiquetas ===
+    % Centro de la ventana = 390. Cada sección tiene su label y sus botones.
 
-    % --- Fila 1: Resolver + Limpiar (pegados) ---
-    Row1Y = 405,
-    CX = 320,
-    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(CX, Row1Y)),
-    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(CX + 110, Row1Y)),
+    % --- Sección: Acciones ---
+    Sec1Y = 400,
+    send(Dialog, display, new(Lbl1, text('Acciones:')), point(300, Sec1Y)),
+    send(Lbl1, font, font(pixels, bold, 11)),
+    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(300, Sec1Y + 18)),
+    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(410, Sec1Y + 18)),
 
-    % --- Fila 2: Ejercicios centrados como grupo ---
-    Row2Y = 440,
-    ExCenter is CX + 20,
+    % --- Sección: Ejercicios ---
+    Sec2Y = 445,
+    send(Dialog, display, new(Lbl2, text('Ejercicios:')), point(300, Sec2Y)),
+    send(Lbl2, font, font(pixels, bold, 11)),
     forall(between(1, 5, N),
-           (  XX is ExCenter + (N - 3) * 55,
-              send(Dialog, display, button(N, message(@prolog, load_exercise, Dialog, N)), point(XX, Row2Y))
+           (  XX is 300 + (N - 1) * 60,
+              send(Dialog, display, button(N, message(@prolog, load_exercise, Dialog, N)), point(XX, Sec2Y + 18))
            )),
 
-    % --- Fila 3: Puzzle label + Easy/Med/Hard juntos ---
-    Row3Y = 477,
-    send(Dialog, display, new(TxtPu, text('Puzzle:')), point(CX - 50, Row3Y)),
-    send(TxtPu, font, font(pixels, bold, 12)),
-    send(Dialog, display, button('Easy',   message(@prolog, on_new_puzzle_click, Dialog, easy)),   point(CX + 15, Row3Y)),
-    send(Dialog, display, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium)), point(CX + 90, Row3Y)),
-    send(Dialog, display, button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard)),   point(CX + 185, Row3Y)),
+    % --- Sección: Nuevo Puzzle ---
+    Sec3Y = 490,
+    send(Dialog, display, new(Lbl3, text('Nuevo Puzzle:')), point(300, Sec3Y)),
+    send(Lbl3, font, font(pixels, bold, 11)),
+    send(Dialog, display, button('Easy',   message(@prolog, on_new_puzzle_click, Dialog, easy)),   point(300, Sec3Y + 18)),
+    send(Dialog, display, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium)), point(390, Sec3Y + 18)),
+    send(Dialog, display, button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard)),   point(485, Sec3Y + 18)),
 
-    % --- Fila 4: Save + Open ---
-    Row4Y = 510,
-    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(CX + 15, Row4Y)),
-    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(CX + 90, Row4Y)),
+    % --- Sección: Archivo ---
+    Sec4Y = Sec3Y,
+    send(Dialog, display, new(Lbl4, text('Archivo:')), point(580, Sec4Y)),
+    send(Lbl4, font, font(pixels, bold, 11)),
+    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(580, Sec4Y + 18)),
+    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(660, Sec4Y + 18)),
 
     % --- Status ---
-    StY = 545,
+    StY = 540,
     new(StatusLabel, text_item(status_label, 'Listo')),
     send(StatusLabel, font, font(pixels, normal, 10)),
     send(StatusLabel, colour, colour(darkblue)),
