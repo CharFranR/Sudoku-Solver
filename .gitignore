@@ -13,6 +13,10 @@ openspec/
 *.swo
 *~
 
+# Compiled files
+a.out
+*.o
+
 # OS
 .DS_Store
 Thumbs.db
