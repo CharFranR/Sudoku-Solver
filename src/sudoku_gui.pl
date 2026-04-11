@@ -7,6 +7,7 @@
 
 :- use_module(library(pce)).
 :- use_module(sudoku_solver).
+:- use_module(sudoku_persistence).
 
 % Genera un nombre estable para cada celda (por prefijo, fila y columna).
 % Prefix puede ser 'input' para celdas de entrada o 'result' para la grilla de resultados.
@@ -25,7 +26,7 @@ cell_item(Dialog, Prefix, Row, Col, CellItem) :-
 open_gui :-
     % Crea el diálogo principal con tamaño ajustado para ambas grillas.
     new(Dialog, dialog('Sudoku Solver')),
-    send(Dialog, size, size(780, 520)),
+    send(Dialog, size, size(780, 560)),
 
     % === Grilla INPUT (izquierda) con OffsetX 0 ===
     % Crea la grilla 9x9 de campos de texto para entrada.
@@ -85,6 +86,34 @@ open_gui :-
     new(Ex5, button('Ejercicio 5', message(@prolog, load_exercise, Dialog, 5))),
     send(Dialog, display, Ex5, point(610, 470)),
 
+    % Botones de Nuevo Puzzle con dificultad
+    new(NewPuzzleLabel, text('Nuevo Puzzle:')),
+    send(NewPuzzleLabel, font, font(pixels, bold, 10)),
+    send(Dialog, display, NewPuzzleLabel, point(10, 435)),
+
+    new(EasyBtn, button('Easy', message(@prolog, on_new_puzzle_click, Dialog, easy))),
+    send(Dialog, display, EasyBtn, point(10, 455)),
+
+    new(MediumBtn, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium))),
+    send(Dialog, display, MediumBtn, point(110, 455)),
+
+    new(HardBtn, button('Hard', message(@prolog, on_new_puzzle_click, Dialog, hard))),
+    send(Dialog, display, HardBtn, point(220, 455)),
+
+    % Botones de Save y Open
+    new(SaveBtn, button('Save', message(@prolog, on_save_click, Dialog))),
+    send(Dialog, display, SaveBtn, point(400, 455)),
+
+    new(OpenBtn, button('Open', message(@prolog, on_open_click, Dialog))),
+    send(Dialog, display, OpenBtn, point(500, 455)),
+
+    % Status widget para mensajes de feedback (no popups)
+    new(StatusLabel, text_item(status_label, 'Listo')),
+    send(StatusLabel, font, font(pixels, normal, 10)),
+    send(StatusLabel, colour, colour(darkblue)),
+    send(StatusLabel, editable, @off),
+    send(Dialog, display, StatusLabel, point(10, 500)),
+
     % Abre la ventana en una posición razonable.
     send(Dialog, open, point(50, 50)).
 
@@ -109,7 +138,13 @@ create_cell(Dialog, Prefix, Row, Col, OffsetX) :-
     get_row_y(Row, Y),
     get_col_x(Col, XBase),
     X is XBase + OffsetX,
-    send(Dialog, display, CellItem, point(X, Y)).
+    send(Dialog, display, CellItem, point(X, Y)),
+    % Agrega validación en tiempo real solo para celdas de entrada (input).
+    (   Prefix = input
+    ->  send(CellItem, modified,
+            message(@prolog, validate_cell, Row, Col, Dialog))
+    ;   true
+    ).
 
 % Calcula la coordenada Y de una fila.
 get_row_y(Row, Y) :-
@@ -299,3 +334,156 @@ load_exercise(Dialog, N) :-
             number_string(Val, S),
             send(CellItem, selection, S)
           )).
+
+% === Handler para Nuevo Puzzle ===
+% on_new_puzzle_click(Dialog, Difficulty): genera un nuevo puzzle y lo carga.
+on_new_puzzle_click(Dialog, Difficulty) :-
+    % Genera un puzzle con la dificultad seleccionada.
+    generate_puzzle(Difficulty, Puzzle),
+    % Limpia ambas grillas.
+    clear_input_grid(Dialog),
+    clear_result_grid(Dialog),
+    % Llena la grilla de input con las pistas del puzzle generado.
+    forall( ( nth1(Row, Puzzle, RowList),
+            nth1(Col, RowList, Val),
+            Val > 0
+          ),
+          ( cell_item(Dialog, input, Row, Col, CellItem),
+            number_string(Val, S),
+            send(CellItem, selection, S)
+          )),
+    send(@display, inform, 'Nuevo puzzle generado').
+
+% === Handlers para Save y Open ===
+% on_save_click(Dialog): guarda el board actual en un archivo.
+on_save_click(Dialog) :-
+    catch(
+        (   gui_read_board(Dialog, Board, _GivenMask),
+            % Use XPCE file dialog to get save location
+            new(FileDialog, file_dialog(save)),
+            send(FileDialog, transient_for, Dialog),
+            get(FileDialog, confirm, PathAtom),
+            nonvar(PathAtom),
+            atom_string(PathString, PathAtom),
+            board_to_file(Board, PathString),
+            % Update status widget instead of popup
+            update_status(Dialog, 'Board saved successfully', darkgreen)
+        ),
+        Error,
+        (   format(atom(Msg), 'Error saving: ~w', [Error]),
+            update_status(Dialog, Msg, darkred)
+        )
+    ).
+
+% on_open_click(Dialog): carga un board desde un archivo.
+on_open_click(Dialog) :-
+    catch(
+        (   % Use XPCE file dialog to get file to open
+            new(FileDialog, file_dialog(open)),
+            send(FileDialog, transient_for, Dialog),
+            get(FileDialog, confirm, PathAtom),
+            nonvar(PathAtom),
+            atom_string(PathString, PathAtom),
+            file_to_board(PathString, Board),
+            % Clear input grid and load the board
+            clear_input_grid(Dialog),
+            clear_result_grid(Dialog),
+            forall( ( nth1(Row, Board, RowList),
+                    nth1(Col, RowList, Val)
+                  ),
+                  ( Val > 0
+                  ->  cell_item(Dialog, input, Row, Col, CellItem),
+                      number_string(Val, S),
+                      send(CellItem, selection, S)
+                  ;   true
+                  )
+            ),
+            % Update status widget instead of popup
+            update_status(Dialog, 'Board loaded successfully', darkgreen)
+        ),
+        Error,
+        (   format(atom(Msg), 'Error loading: ~w', [Error]),
+            update_status(Dialog, Msg, darkred)
+        )
+    ).
+
+%% update_status(+Dialog, +Message, +Colour)
+%  Actualiza el mensaje del status widget en la barra inferior.
+update_status(Dialog, Message, Colour) :-
+    get(Dialog, member, status_label, StatusLabel),
+    send(StatusLabel, selection, Message),
+    send(StatusLabel, colour, Colour).
+
+%% === Validación en tiempo real ===
+%% validate_cell(+Row, +Col, +Dialog)
+%  Valida la celda en (Row, Col) y actualiza los fondos de todas las celdas
+%  conflitantes en rojo. Llamada desde el mensaje 'modified' de XPCE.
+validate_cell(Row, Col, Dialog) :-
+    gui_read_board(Dialog, Board, _GivenMask),
+    Position = Row-Col,
+    is_cell_valid(Board, Position, Status),
+    % Obtiene todas las celdas conflitantes para esta posición
+    (   Status = empty
+    ->  % Celda vacía: no hay conflicto, limpiar todos los fondos
+        clear_all_input_backgrounds(Dialog)
+    ;   Status = valid
+    ->  % Válida: limpiar fondo de esta celda y seus conflitantes
+        update_cell_background(Dialog, input, Row, Col, white),
+        findall(R-C, conflicting_cell_for_validation(Board, Row, Col, R, C), Conflicts),
+        forall(member(R-C, Conflicts),
+               update_cell_background(Dialog, input, R, C, white))
+    ;   % Inválida: highlight la celda actual y todas sus conflitantes en rojo
+        update_cell_background(Dialog, input, Row, Col, red),
+        findall(R-C, conflicting_cell_for_validation(Board, Row, Col, R, C), Conflicts),
+        forall(member(R-C, Conflicts),
+               update_cell_background(Dialog, input, R, C, red))
+    ).
+
+%% conflicting_cell_for_validation(+Board, +Row, +Col, -R, -C)
+%  Helper que encuentra células conflitantes (misma fila, columna o bloque)
+%  No incluye la celda (Row, Col) misma.
+conflicting_cell_for_validation(Board, Row, Col, R, C) :-
+    nth1(Row, Board, RowList),
+    nth1(Col, RowList, Value),
+    Value \== 0,
+    % Misma fila, diferente columna
+    member(Row, Board),
+    nth1(C, Row, Value),
+    C \== Col,
+    R = Row.
+conflicting_cell_for_validation(Board, Row, Col, R, C) :-
+    nth1(Row, Board, RowList),
+    nth1(Col, RowList, Value),
+    Value \== 0,
+    % Misma columna, diferente fila
+    nth1(R, Board, ColList),
+    nth1(Col, ColList, Value),
+    R \== Row,
+    C = Col.
+conflicting_cell_for_validation(Board, Row, Col, R, C) :-
+    nth1(Row, Board, RowList),
+    nth1(Col, RowList, Value),
+    Value \== 0,
+    % Mismo bloque 3x3
+    BlockRowStart is ((Row - 1) // 3) * 3 + 1,
+    BlockColStart is ((Col - 1) // 3) * 3 + 1,
+    between(BlockRowStart, BlockRowStart + 2, R),
+    between(BlockColStart, BlockColStart + 2, C),
+    (R-C) \== (Row-Col),
+    nth1(R, Board, BR),
+    nth1(C, BR, Value).
+
+%% clear_all_input_backgrounds(+Dialog)
+%  Limpia el fondo de todas las celdas de entrada a blanco.
+clear_all_input_backgrounds(Dialog) :-
+    forall(between(1, 9, Row),
+           forall(between(1, 9, Col),
+                  update_cell_background(Dialog, input, Row, Col, white))).
+
+%% update_cell_background(+Dialog, +Prefix, +Row, +Col, +Colour)
+%  Actualiza el color de fondo de una celda específica.
+%  Prefix = input | result
+%  Colour = white | red | colour(hex) etc.
+update_cell_background(Dialog, Prefix, Row, Col, Colour) :-
+    cell_item(Dialog, Prefix, Row, Col, CellItem),
+    send(CellItem, background, Colour).
