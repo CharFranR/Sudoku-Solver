@@ -135,8 +135,8 @@ clear_input_grid(Dialog) :-
 
 % Actualiza el mensaje de estado en la barra interior.
 update_status(Dialog, Message) :-
-    get(Dialog, member, status_item, StatusItem),
-    send(StatusItem, selection, Message).
+    get(Dialog, member, status_label, StatusLabel),
+    send(StatusLabel, selection, Message).
 
 % Handler del botón Limpiar Todo: limpia ambas grillas (input y result).
 on_clear_click(Dialog) :-

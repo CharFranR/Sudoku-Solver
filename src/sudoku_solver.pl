@@ -180,16 +180,24 @@ difficulty_clue_range(hard,  22, 27).
 
 %% generate_complete_board(-Board)
 %  Genera un tablero Sudoku completamente resuelto usando CLPFD.
-%  La variabilidad viene de random_permutation/2 en el proceso de remocion.
-generate_complete_board(Board) :-
+%  La variabilidad viene de una permutacion aleatoria de digitos.
+generate_complete_board(PermutedBoard) :-
     % Crea la estructura del tablero con 81 variables.
     Board = [R1,R2,R3,R4,R5,R6,R7,R8,R9],
     maplist(row_vars(9), [R1,R2,R3,R4,R5,R6,R7,R8,R9]),
     % Aplica restricciones Sudoku.
     constrain_board(Board),
-    % Labeling para obtener una solucion.
+    % Labeling deterministico para obtener UNA solucion.
     append(Board, AllVars),
-    labeling([], AllVars).
+    labeling([], AllVars),
+    % Aplica permutacion aleatoria de digitos (1..9) para variabilidad.
+    random_permutation([1,2,3,4,5,6,7,8,9], Perm),
+    maplist(maplist(substitute_digit(Perm)), Board, PermutedBoard).
+
+%% substitute_digit(+Perm, +Val, -NewVal)
+%  Mapea Val segun la permutacion (Val en posicion I -> Perm[I]).
+substitute_digit(Perm, Val, NewVal) :-
+    nth1(Val, Perm, NewVal).
 
 %% row_vars(+Length, -Row)
 %  Crea una fila de variables CLPFD.
