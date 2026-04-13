@@ -276,16 +276,32 @@ on_new_puzzle_click(Dialog, Difficulty) :-
           )).
 
 % === Handlers para Save y Open ===
+
+%% ask_file_path(+Dialog, +Mode, -PathString)
+%  Abre un dialogo XPCE para ingresar un path de archivo.
+%  Mode = save | open. Devuelve PathString o falla si el usuario cancela.
+ask_file_path(Dialog, Mode, PathString) :-
+    (Mode == save -> Title = 'Guardar tablero' ; Title = 'Abrir tablero'),
+    new(D, dialog(Title)),
+    send(D, append, new(TI, text_item(filename, ''))),
+    send(TI, length, 40),
+    send(D, append, button(ok, message(D, return, TI?selection))),
+    send(D, append, button(cancelar, message(D, return, @nil))),
+    send(D, default_button, ok),
+    send(D, transient_for, Dialog),
+    get(D, confirm_centered, Result),
+    send(D, destroy),
+    Result \== @nil,
+    atom_string(Result, PathString),
+    PathString \== ''.
+
 on_save_click(Dialog) :-
     catch(
         (   gui_read_board(Dialog, Board, _GivenMask),
-            new(FileDialog, file_dialog(save)),
-            send(FileDialog, transient_for, Dialog),
-            get(FileDialog, confirm, PathAtom),
-            nonvar(PathAtom),
-            atom_string(PathString, PathAtom),
+            ask_file_path(Dialog, save, PathString),
             board_to_file(Board, PathString),
-            update_status(Dialog, 'Board saved', darkgreen)
+            format(atom(Msg), 'Tablero guardado: ~w', [PathString]),
+            update_status(Dialog, Msg, darkgreen)
         ),
         Error,
         (   format(atom(Msg), 'Error: ~w', [Error]),
@@ -295,11 +311,7 @@ on_save_click(Dialog) :-
 
 on_open_click(Dialog) :-
     catch(
-        (   new(FileDialog, file_dialog(open)),
-            send(FileDialog, transient_for, Dialog),
-            get(FileDialog, confirm, PathAtom),
-            nonvar(PathAtom),
-            atom_string(PathString, PathAtom),
+        (   ask_file_path(Dialog, open, PathString),
             file_to_board(PathString, Board),
             clear_input_grid(Dialog),
             clear_result_grid(Dialog),
@@ -313,7 +325,8 @@ on_open_click(Dialog) :-
                   ;   true
                   )
             ),
-            update_status(Dialog, 'Board loaded', darkgreen)
+            format(atom(Msg), 'Tablero cargado: ~w', [PathString]),
+            update_status(Dialog, Msg, darkgreen)
         ),
         Error,
         (   format(atom(Msg), 'Error: ~w', [Error]),
