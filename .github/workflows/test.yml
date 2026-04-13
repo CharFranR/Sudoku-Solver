@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - master
+  pull_request:
+    branches:
+      - main
+      - develop
+      - master
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Add SWI-Prolog stable PPA
+        run: sudo apt-add-repository ppa:swi-prolog/stable
+
+      - name: Update package index
+        run: sudo apt-get update
+
+      - name: Install SWI-Prolog
+        run: sudo apt-get install -y swi-prolog
+
+      - name: Run test suite
+        run: swipl -s src/run_tests.pl -g run_all_tests -t halt

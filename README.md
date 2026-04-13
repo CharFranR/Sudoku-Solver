@@ -1,5 +1,7 @@
 # Sudoku Solver — SWI-Prolog + XPCE
 
+[![Tests](https://github.com/CharFranR/Sudoku-Solver/actions/workflows/test.yml/badge.svg)](https://github.com/CharFranR/Sudoku-Solver/actions/workflows/test.yml)
+
 Un resolvedor de Sudoku 9×9 en Prolog puro con interfaz gráfica XPCE.
 
 ## Prerrequisitos
@@ -8,6 +10,16 @@ Un resolvedor de Sudoku 9×9 en Prolog puro con interfaz gráfica XPCE.
 - En Linux (Debian/Ubuntu): `sudo apt install swi-prolog swi-prolog-x`
 - En macOS: `brew install swi-prolog`
 - Verificar XPCE: `swipl -g "use_module(library(pce)), writeln(pce_ok)" -t halt`
+
+## Testing
+
+Ejecutar el suite de tests con el runner:
+
+```bash
+swipl -s src/run_tests.pl -g run_all_tests -t halt
+```
+
+Esto carga y ejecuta los 44 tests de plunit (21 en `sudoku_validate.plt` + 23 en `sudoku_solver.plt`).
 
 ## Ejecución
 

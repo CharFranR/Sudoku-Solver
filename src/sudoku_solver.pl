@@ -131,20 +131,20 @@ solve_one(Board, Solution) :-
     board_from_vars(Sudoku, Solution).
 
 % True si el tablero tiene dos o más soluciones.
-has_multiple_solutions(Board, true) :-
-    % Enumera hasta 2 soluciones y chequea que haya al menos dos.
+has_multiple_solutions(Board, Result) :-
     board_to_vars(Board, Sudoku, AllVars),
     constrain_board(Sudoku),
-    findnsols(2,
-              Sol,
-              ( labeling([], AllVars),
-                board_from_vars(Sudoku, Sol)
-              ),
-              Solutions),
-    !,
-    length(Solutions, Len),
-    Len >= 2.
-has_multiple_solutions(_, false).
+    (   findnsols(2,
+                  Sol,
+                  ( labeling([], AllVars),
+                    board_from_vars(Sudoku, Sol)
+                  ),
+                  Solutions),
+        length(Solutions, Len),
+        Len >= 2
+    ->  Result = true
+    ;   Result = false
+    ).
 
 % True si no hay ceros (tablero completo).
 is_fully_filled(Board) :-
@@ -319,12 +319,12 @@ exercise(4,
 
 % Ejercicio 5 (master)
 exercise(5,
-          [[0,0,5,9,1,0,0,0,0],
-           [0,0,0,0,0,2,0,0,0],
-           [0,3,0,0,0,0,6,0,0],
-           [0,0,0,0,0,0,0,7,2],
-           [1,0,0,0,6,0,0,0,8],
-           [6,4,0,0,0,0,0,0,0],
-           [0,0,9,0,0,0,0,1,0],
-           [0,0,0,8,0,0,0,0,0],
-           [0,0,0,0,3,5,2,0,0]]).
+          [[0,0,0,0,0,0,0,0,0],
+           [0,0,0,0,0,3,0,8,5],
+           [0,0,1,0,2,0,0,0,0],
+           [0,0,0,5,0,7,0,0,0],
+           [0,0,4,0,0,0,1,0,0],
+           [0,9,0,0,0,0,0,0,0],
+           [5,0,0,0,0,0,0,7,3],
+           [0,0,2,0,1,0,0,0,0],
+           [0,0,0,0,4,0,0,0,9]]).

@@ -73,6 +73,7 @@ open_gui :-
     send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(630, Row2Y)),
     send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(710, Row2Y)),
 
+
     send(Dialog, open, point(50, 50)).
 
 %% create_cell(+Dialog, +Prefix, +Row, +Col, +OffsetX)
@@ -132,10 +133,16 @@ clear_input_grid(Dialog) :-
                     send(CellItem, selection, '')
                   ))).
 
+% Actualiza el mensaje de estado en la barra interior.
+update_status(Dialog, Message) :-
+    get(Dialog, member, status_item, StatusItem),
+    send(StatusItem, selection, Message).
+
 % Handler del botón Limpiar Todo: limpia ambas grillas (input y result).
 on_clear_click(Dialog) :-
     clear_input_grid(Dialog),
-    clear_result_grid(Dialog).
+    clear_result_grid(Dialog),
+    update_status(Dialog, '').
 
 % Handler del botón Resolver: lee, resuelve y actualiza la grilla.
 on_resolver_click(Dialog) :-
@@ -147,33 +154,35 @@ on_resolver_click(Dialog) :-
         ),
         Error,
         (   format(atom(Msg), 'Error: ~w', [Error]),
-            send(@display, inform, Msg)
+            update_status(Dialog, Msg)
         )
     ).
 
 % Muestra el mensaje correspondiente y aplica la solución si corresponde.
 handle_status(Dialog, solved, Solution, GivenMask) :-
     !,
-    send(@display, inform, '¡Sudoku resuelto! Completando celdas vacías.'),
+    update_status(Dialog, '¡Sudoku resuelto! Completando celdas vacías.'),
     gui_apply_solution(Dialog, GivenMask, Solution).
-handle_status(_Dialog, already_solved, _Solution, _GivenMask) :-
+handle_status(Dialog, already_solved, _Solution, _GivenMask) :-
     !,
-    send(@display, inform, 'El puzzle ya está resuelto.').
-handle_status(_Dialog, no_solution, _Solution, _GivenMask) :-
+    update_status(Dialog, 'El puzzle ya está resuelto.').
+handle_status(Dialog, no_solution, _Solution, _GivenMask) :-
+    % No existe solución consistente.
     !,
-    send(@display, inform, 'Sin solución: el puzzle no tiene solución válida.').
+    update_status(Dialog, 'Sin solución: el puzzle no tiene solución válida.').
 handle_status(Dialog, multiple_solutions, Solution, GivenMask) :-
     !,
-    send(@display, inform, 'No único: hay múltiples soluciones. Mostrando una.'),
+    update_status(Dialog, 'No único: hay múltiples soluciones. Mostrando una.'),
     gui_apply_solution(Dialog, GivenMask, Solution).
-handle_status(_Dialog, invalid_input(Reason), _Solution, _GivenMask) :-
+handle_status(Dialog, invalid_input(Reason), _Solution, _GivenMask) :-
     !,
     format(atom(Msg), 'Input inválido: ~w', [Reason]),
-    send(@display, inform, Msg).
-handle_status(_Dialog, inconsistent(Reason), _Solution, _GivenMask) :-
+    update_status(Dialog, Msg).
+handle_status(Dialog, inconsistent(Reason), _Solution, _GivenMask) :-
+    % El tablero viola restricciones (duplicados iniciales).
     !,
     format(atom(Msg), 'Puzzle inconsistente: ~w', [Reason]),
-    send(@display, inform, Msg).
+    update_status(Dialog, Msg).
 
 % Lee la grilla XPCE y produce el Board (0..9) y una máscara de pistas.
 gui_read_board(Dialog, Board, GivenMask) :-
@@ -240,6 +249,8 @@ gui_apply_solution(Dialog, _GivenMask, Solution) :-
 load_exercise(Dialog, N) :-
     clear_input_grid(Dialog),
     clear_result_grid(Dialog),
+    update_status(Dialog, ''),
+    % Obtiene el tablero del ejercicio N.
     exercise(N, Board),
     forall( ( nth1(Row, Board, RowList),
             nth1(Col, RowList, Val),
