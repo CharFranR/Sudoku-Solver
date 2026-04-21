@@ -1,8 +1,14 @@
 :- module(sudoku_gui,
           [ open_gui/0,
             gui_read_board/3,
+            gui_read_board_raw/2,
             gui_apply_solution/3,
-            load_exercise/2
+            load_exercise/2,
+            practice_state/3,
+            find_mistakes/4,
+            mistake_to_string/2,
+            format_elapsed_time/2,
+            calculate_score/4
           ]).
 
 :- use_module(library(pce)).
@@ -10,7 +16,7 @@
 :- use_module(sudoku_persistence).
 :- use_module(sudoku_validate).
 
-:- dynamic(practice_state/5).
+:- dynamic(practice_state/3).
 
 % Windows XPCE Font Rendering Fix
 :- initialization(fix_pce_fonts).
@@ -97,15 +103,15 @@ open_gui :-
     send(PracticeTimer, length, 6),
     send(PracticeTimer, displayed, @off),
 
-    send(Dialog, display, button('Rendirse', message(@prolog, on_surrender_click, Dialog)), point(545, Row2Y)),
+    send(Dialog, display, button('Comprobar', message(@prolog, on_comprobar_click, Dialog)), point(545, Row2Y)),
     send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(615, Row2Y)),
 
     % Ocultar botones de practice inicialmente
     get(Dialog, member, practice_timer, PracticeTimer),
     send(PracticeTimer, displayed, @off),
     get(Dialog, member, practice_timer, PracticeTimer),  % noqa: F841
-    (   get(Dialog, member, 'Rendirse', BtnRendirse)
-    ->  send(BtnRendirse, displayed, @off)
+    (   get(Dialog, member, 'Comprobar', BtnComprobar)
+    ->  send(BtnComprobar, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Volver', BtnVolver)
@@ -240,6 +246,39 @@ gui_read_board(Dialog, Board, GivenMask) :-
               read_row(Dialog, Prefix, Row, _RowCells, RowMask)
             ),
             GivenMask).
+
+% Lee la grilla XPCE y produce el RawBoard con el texto exacto que el usuario ingresó.
+% RawBoard contiene los átomos/strings sin conversión a números (excepto 0 para vacío).
+gui_read_board_raw(Dialog, RawBoard) :-
+    Prefix = input,
+    findall(RowCells,
+            ( between(1, 9, Row),
+              read_row_raw(Dialog, Prefix, Row, RowCells)
+            ),
+            RawBoard).
+
+read_row_raw(Dialog, Prefix, Row, RowCells) :-
+    findall(Cell,
+            ( between(1, 9, Col),
+              read_cell_raw(Dialog, Prefix, Row, Col, Cell)
+            ),
+            RowCells).
+
+% Lee la celda sin convertir a número - devuelve el texto exacto del usuario.
+% cell puede ser: '' (vacío), '0', un átomo con número (ej '5'), o un átomo no-numérico (ej 'a')
+read_cell_raw(Dialog, Prefix, Row, Col, Cell) :-
+    cell_item(Dialog, Prefix, Row, Col, CellItem),
+    get(CellItem, selection, Sel0),
+    (   Sel0 == @nil
+    ->  Cell = ''
+    ;   atomic(Sel0)
+    ->  Cell = Sel0
+    ;   ( catch(get(Sel0, value, Sel), _, Sel = Sel0)
+        -> true
+        ;   Sel = Sel0
+        ),
+        Cell = Sel
+    ).
 
 read_row(Dialog, Prefix, Row, RowCells, RowMask) :-
     findall(Cell,
@@ -408,10 +447,12 @@ count_clues(Board, Count) :-
 %% start_practice_mode(+Dialog, +Board)
 % Inicia el modo practice: bloquear celdas iniciales,
 % guardar snapshot, mostrar controles de practice.
+% Ahora con timer simplificado - solo guarda timestamp, sin UI polling.
 start_practice_mode(Dialog, Board) :-
-    % Guardar snapshot inicial
+    % Guardar snapshot inicial y timestamp de inicio
     duplicate_term(Board, InitialSnapshot),
-    asserta(practice_state(practice, InitialSnapshot, false, @nil, @nil)),
+    get_time(StartTime),
+    asserta(practice_state(practice, InitialSnapshot, StartTime)),
 
     % Bloquear celdas iniciales (given)
     lock_given_cells(Dialog, Board),
@@ -419,10 +460,7 @@ start_practice_mode(Dialog, Board) :-
     % Mostrar controles de practice
     show_practice_controls(Dialog),
 
-    % Configurar edit handler para validación en vivo
-    setup_practice_edit_handler(Dialog),
-
-    update_status(Dialog, 'Modo Practice: Edita una celda vacia para comenzar').
+    update_status(Dialog, 'Modo Practice: Completa el Sudoku y presiona Comprobar').
 
 %% lock_given_cells(+Dialog, +Board)
 % Bloquea las celdas que tienen pistas (no son editables).
@@ -495,13 +533,9 @@ show_practice_controls(Dialog) :-
     % Ocultar botones de ejercicios
     forall(between(1, 5, N), hide_exercise_button(Dialog, N)),
 
-    % Mostrar controles de practice
-    (   get(Dialog, member, practice_timer, PracticeTimer)
-    ->  send(PracticeTimer, displayed, @on)
-    ;   true
-    ),
-    (   get(Dialog, member, 'Rendirse', BtnRendirse)
-    ->  send(BtnRendirse, displayed, @on)
+    % Mostrar controles de practice (sin timer UI - solo background timestamp)
+    (   get(Dialog, member, 'Comprobar', BtnComprobar)
+    ->  send(BtnComprobar, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Volver', BtnVolver)
@@ -515,116 +549,264 @@ hide_exercise_button(Dialog, N) :-
     ;   true
     ).
 
-%% setup_practice_edit_handler(+Dialog)
-% Configura el handler para edición de celdas en modo practice.
-setup_practice_edit_handler(Dialog) :-
-    % XPCE text_item no dispara eventos automaticamente, usamos un timer de polling
-    new(PollTimer, timer(300, message(@prolog, check_cell_changes, Dialog))),
-    send(PollTimer, start),
-    practice_state(practice, Snapshot, false, PollTimer, _),
-    retractall(practice_state(practice, _, _, _, _)),
-    asserta(practice_state(practice, Snapshot, false, PollTimer, @nil)).
+%% on_comprobar_click(+Dialog)
+% Maneja el botón "Comprobar":
+% calcular tiempo, score, encontrar errores y mostrar resultado en popup.
+on_comprobar_click(Dialog) :-
+    practice_state(practice, InitialSnapshot, StartTime),
 
-%% check_cell_changes(+Dialog)
-% Revisa si hubo cambios en las celdas (polling).
-check_cell_changes(Dialog) :-
-    practice_state(practice, _Snapshot, TimerStarted, _PollTimer, _DisplayTimer),
-    (   TimerStarted == true
-    ->  gui_read_board(Dialog, CurrentBoard, _GivenMask),
-        validate_live_practice(Dialog, CurrentBoard)
-    ;   gui_read_board(Dialog, CurrentBoard, _GivenMask),
-        flatten(CurrentBoard, Cells),
-        exclude(==(0), Cells, NonEmpty),
-        length(NonEmpty, Count),
-        (   Count > 0
-        ->  start_practice_timer(Dialog),
-            gui_read_board(Dialog, CurrentBoard2, _GivenMask2),
-            validate_live_practice(Dialog, CurrentBoard2)
-        ;   true
+    % Obtener tiempo actual y calcular elapsed
+    get_time(CurrentTime),
+    Elapsed is round(CurrentTime - StartTime),
+    format_elapsed_time(Elapsed, TimeStr),
+
+    % Resolver el puzzle inicial para obtener solución
+    solve_status(InitialSnapshot, SolverStatus, Solution),
+
+    % Leer el tablero RAW del usuario (texto exacto)
+    gui_read_board_raw(Dialog, RawBoard),
+
+    % Calcular score (solo celdas originalmente vacías)
+    % Primero necesitamos el board normalizado para el score
+    gui_read_board(Dialog, UserBoard, _GivenMask),
+    calculate_score(UserBoard, Solution, InitialSnapshot, ScorePercent),
+
+    % Encontrar errores usando RawBoard vs Solution vs InitialSnapshot
+    find_mistakes(RawBoard, Solution, InitialSnapshot, Mistakes),
+
+    % Mostrar resultado en popup
+    show_comprobar_result(Dialog, TimeStr, ScorePercent, Mistakes, SolverStatus, Solution).
+
+%% format_elapsed_time(+Seconds, -TimeStr)
+% Formatea segundos a string MM:SS
+format_elapsed_time(Seconds, TimeStr) :-
+    Minutes is Seconds // 60,
+    Secs is Seconds mod 60,
+    % Format with leading zeros
+    (   Minutes < 10
+    ->  format(atom(MinStr), '0~d', [Minutes])
+    ;   format(atom(MinStr), '~d', [Minutes])
+    ),
+    (   Secs < 10
+    ->  format(atom(SecStr), '0~d', [Secs])
+    ;   format(atom(SecStr), '~d', [Secs])
+    ),
+    atomic_list_concat([MinStr, SecStr], ':', TimeStr).
+
+%% find_mistakes(+RawBoard, +Solution, +InitialSnapshot, -Mistakes)
+% Encuentra errores en la entrada del usuario comparando RawBoard contra Solution e InitialSnapshot.
+% Tipos de errores:
+%   mistake(invalid_char, Row, Col) - el caracter no es un número
+%   mistake(invalid_number, Row, Col) - el número no está en rango 1-9
+%   mistake(wrong_number, Row, Col, N) - el número es válido pero incorrecto
+%   no_input - no se ingresó ningún valor nuevo
+find_mistakes(RawBoard, Solution, InitialSnapshot, Mistakes) :-
+    % Verificar si hay algún input nuevo EN CELDSAS QUE ESTABAN VACÍAS
+    find_new_inputs(RawBoard, InitialSnapshot, HasNewInput),
+    (   HasNewInput == no
+    ->  Mistakes = [no_input]
+    ;   find_mistakes_rec(RawBoard, Solution, InitialSnapshot, 1, 1, [], RawMistakes),
+        (   RawMistakes = []
+        ->  Mistakes = []  % Todo correcto
+        ;   maplist(mistake_to_string, RawMistakes, Mistakes)
         )
     ).
 
+%% find_new_inputs(+RawBoard, +InitialSnapshot, -HasNewInput)
+% Verifica si el usuario agregó algún valor nuevo en celdas que estaban vacías.
+% NOTA: Si el usuario MODIFICÓ una celda que ya tenía pistas (InitialVal > 0),
+% eso cuenta como "new input" porque el valor cambió.
+find_new_inputs(RawBoard, InitialSnapshot, HasNewInput) :-
+    find_new_inputs_rec(RawBoard, InitialSnapshot, 1, 1, HasNewInput).
 
-%% on_cell_edit_practice(+Dialog, +Row, +Col)
-% Maneja la edición de una celda en modo practice.
-% Inicia el timer si no ha-started, y valida en vivo.
-on_cell_edit_practice(Dialog, _Row, _Col) :-
-    practice_state(practice, _InitialSnapshot, TimerStarted, _PollTimer, _DisplayTimer),
+find_new_inputs_rec([], [], _Row, _Col, no) :- !.
+find_new_inputs_rec([RowB|RestB], [RowS|RestS], Row, 1, HasNewInput) :- !,
+    find_new_inputs_row(RowB, RowS, Row, 1, HasNewInputOrCont),
+    (   HasNewInputOrCont = yes
+    ->  HasNewInput = yes
+    ;   NextRow is Row + 1,
+        find_new_inputs_rec(RestB, RestS, NextRow, 1, HasNewInput)
+    ).
+find_new_inputs_rec([_|RestB], [_|RestS], Row, Col, HasNewInput) :-
+    NextCol is Col + 1,
+    find_new_inputs_rec(RestB, RestS, Row, NextCol, HasNewInput).
 
-    % Verificar si el timer ya Started - si no, iniciarlo
-    (   TimerStarted == false
-    ->  start_practice_timer(Dialog)
-    ;   true
-    ),
-
-    % Validación en vivo
-    gui_read_board(Dialog, CurrentBoard, _GivenMask),
-    validate_live_practice(Dialog, CurrentBoard).
-
-%% validate_live_practice(+Dialog, +Board)
-% Valida las reglas del Sudoku en vivo durante practice.
-validate_live_practice(Dialog, Board) :-
-    validate_board(Board, Status),
-    (   Status == valid
-    ->  update_status(Dialog, 'Validando... sin errores', darkgreen)
-    ;   format(atom(Msg), 'Error: ~w', [Status]),
-        update_status(Dialog, Msg, darkred)
+find_new_inputs_row([], [], _Row, _Col, no) :- !.
+find_new_inputs_row([RawVal|RestU], [InitVal|RestS], Row, Col, HasNewInput) :-
+    % Una celda cuenta como "new input" si:
+    % 1. Estaba vacía inicialmente (InitVal = 0) Y ahora tiene algo, O
+    % 2. Tenía un valor inicialmente (InitVal > 0) Y el usuario lo cambió
+    (   InitVal = 0
+    ->  % Celda estaba vacía - ver si ahora tiene algo
+        (   RawVal = '' ; RawVal = '0' ; RawVal = 0
+        ->  % Sigue vacía - no es new input
+            find_new_inputs_row(RestU, RestS, Row, Col+1, HasNewInput)
+        ;   % Ahora tiene algo - es new input!
+            HasNewInput = yes
+        )
+    ;   % Celda tenía pistas - ver si cambió
+        (   RawVal = InitVal
+        ->  % No cambió
+            find_new_inputs_row(RestU, RestS, Row, Col+1, HasNewInput)
+        ;   % Cambió - es new input!
+            HasNewInput = yes
+        )
     ).
 
-%% on_surrender_click(+Dialog)
-% Maneja el botón "Rendirse":
-% detener timer, resolver, comparar, mostrar resultado.
-on_surrender_click(Dialog) :-
-    stop_practice_timer,
-    practice_state(practice, InitialSnapshot, _, _PollTimer, _DisplayTimer),
+%% find_mistakes_rec(+RawBoard, +Solution, +InitialSnapshot, +Row, +Col, +Acc, -Mistakes)
+find_mistakes_rec([], [], _Initial, _Row, _Col, Acc, Acc) :- !.
+find_mistakes_rec([RowB|RestB], [RowS|RestS], Initial, Row, 1, Acc, Mistakes) :- !,
+    find_mistakes_row(RowB, RowS, Initial, Row, 1, Acc, Acc2),
+    NextRow is Row + 1,
+    find_mistakes_rec(RestB, RestS, Initial, NextRow, 1, Acc2, Mistakes).
+find_mistakes_rec([_|RestB], [_|RestS], Initial, Row, Col, Acc, Mistakes) :-
+    NextCol is Col + 1,
+    find_mistakes_rec(RestB, RestS, Initial, Row, NextCol, Acc, Mistakes).
 
-    % Resolver el puzzle inicial
-    solve_status(InitialSnapshot, SolverStatus, Solution),
+find_mistakes_row([], [], _Initial, _Row, _Col, Acc, Acc) :- !.
+find_mistakes_row([RawVal|RestU], [SolVal|RestS], Initial, Row, Col, Acc, Mistakes) :-
+    % Obtener valor inicial de esta celda
+    nth1(Row, Initial, InitialRow),
+    nth1(Col, InitialRow, InitialVal),
+    % Solo procesar si la celda estaba inicialmente vacía (era 0)
+    (   InitialVal > 0
+    ->  % Celda era pistas - ignorar lo que el usuario puso
+        Acc2 = Acc
+    ;   % Celda estaba vacía - analizar lo que puso el usuario
+        (   RawVal = '' ; RawVal = '0' ; RawVal = 0
+        ->  % Celda vacía - no hay error
+            Acc2 = Acc
+        ;   % Celda tiene contenido - analizar
+            % Convertir a átomo si es necesario para atom_number
+            (   integer(RawVal)
+            ->  number_string(RawVal, RawStr)
+            ;   RawStr = RawVal
+            ),
+            (   catch(atom_number(RawStr, N), _, fail)
+            ->  % Es numérico
+                (   N < 1 ; N > 9
+                ->  % Número fuera de rango
+                    Acc2 = [mistake(invalid_number, Row, Col)|Acc]
+                ;   N \= SolVal
+                    ->  % Número válido pero incorrecto
+                        Acc2 = [mistake(wrong_number, Row, Col, N)|Acc]
+                    ;   % Número correcto
+                        Acc2 = Acc
+                )
+            ;   % No es numérico (letra, símbolo, etc.)
+                Acc2 = [mistake(invalid_char, Row, Col)|Acc]
+            )
+        )
+    ),
+    NextCol is Col + 1,
+    find_mistakes_row(RestU, RestS, Initial, Row, NextCol, Acc2, Mistakes).
 
-    % Leer el tablero actual del usuario
-    gui_read_board(Dialog, UserBoard, _GivenMask),
+%% mistake_to_string(+Mistake, -ErrorString)
+% Convierte una estructura de error en el mensaje de error formateado.
+mistake_to_string(no_input, "No se ha ingresaado ningun valor, que triste.") :- !.
+mistake_to_string(mistake(invalid_char, Row, Col), ErrorStr) :-
+    format(atom(ErrorStr), 'Fila ~d, Columna ~d: El caracter ingresaado no es un numero', [Row, Col]).
+mistake_to_string(mistake(invalid_number, Row, Col), ErrorStr) :-
+    format(atom(ErrorStr), 'Fila ~d, Columna ~d: El numero ingresaado no es valido', [Row, Col]).
+mistake_to_string(mistake(wrong_number, Row, Col, N), ErrorStr) :-
+    format(atom(ErrorStr), 'Fila ~d, Columna ~d: El numero ~d es incorrecto', [Row, Col, N]).
 
-    % Comparar con la solución
-    calculate_score(UserBoard, Solution, ScorePercent),
+%% show_comprobar_result(+Dialog, +TimeStr, +ScorePercent, +Mistakes, +SolverStatus, +Solution)
+% Muestra el resultado del check en un popup personalizado con tamaño variable.
+show_comprobar_result(Dialog, TimeStr, ScorePercent, Mistakes, SolverStatus, Solution) :-
+    ( SolverStatus = solved ; SolverStatus = multiple_solutions ),
+    !,
+    % Aplicar la solución al board result
+    gui_apply_solution(Dialog, _GivenMask, Solution),
+    % Formatear mensaje principal
+    format(atom(MainMsg), 'Tiempo: ~w~nRendimiento: ~w%', [TimeStr, ScorePercent]),
+    % Combinar mensajes
+    (   Mistakes = []
+    ->  FinalMsg = MainMsg
+    ;   Mistakes = [no_input]
+    ->  % Caso especial: no se ingreng ningun valor
+        concat(MainMsg, '\n\nNo se ha ingresaado ningun valor, que triste.', FinalMsg)
+    ;   length(Mistakes, NumErrors),
+        format(atom(ErrMsg), '~n~nErrores (~d):~n', [NumErrors]),
+        atomic_list_concat(Mistakes, '\n', AllErrors),
+        concat(ErrMsg, AllErrors, FullErrMsg),
+        concat(MainMsg, FullErrMsg, FinalMsg)
+    ),
+    % Calcular tamaño del editor según cantidad de errores
+    (   Mistakes = []
+    ->  Height = 6
+    ;   Mistakes = [no_input]
+    ->  Height = 8
+    ;   length(Mistakes, NumErrors),
+        Height is min(20, max(6, 6 + NumErrors))  % Min 6, max 20, grows with errors
+    ),
+    % Crear diálogo de resultados con tamaño variable
+    new(ResultD, dialog('Resultados de Practica')),
+    new(Txt, editor),
+    send(ResultD, append, Txt),
+    send(Txt, size, size(40, Height)),
+    send(Txt, editable, @off),
+    send(Txt, contents, FinalMsg),
+    send(ResultD, append, button('Cerrar', message(ResultD, destroy))),
+    send(ResultD, transient_for, Dialog),
+    send(ResultD, default_button, 'Cerrar'),
+    send(ResultD, open_centered, Dialog).
+show_comprobar_result(Dialog, _TimeStr, _ScorePercent, _Mistakes, SolverStatus, Solution) :-
+    % Si no es solved, mostrar la solución también
+    handle_comprobar_result(Dialog, SolverStatus, Solution).
 
-    % Mostrar resultado
-    format(atom(Msg), 'Rendido. Precision: ~w%', [ScorePercent]),
-    update_status(Dialog, Msg, darkblue),
-
-    % Mostrar la solución
-    handle_surrender_result(Dialog, SolverStatus, Solution).
-
-handle_surrender_result(Dialog, solved, Solution) :-
+handle_comprobar_result(Dialog, solved, Solution) :-
     gui_apply_solution(Dialog, _GivenMask, Solution).
-handle_surrender_result(Dialog, already_solved, _Solution) :-
-    update_status(Dialog, 'Ya estaba resuelto', darkblue).
-handle_surrender_result(Dialog, no_solution, _Solution) :-
+handle_comprobar_result(Dialog, already_solved, _Solution) :-
+    new(MsgD, dialog('Resultado')),
+    new(Txt, editor),
+    send(MsgD, append, Txt),
+    send(Txt, size, size(30, 6)),
+    send(Txt, editable, @off),
+    send(Txt, contents, '¡Ya estaba resuelto!'),
+    send(MsgD, append, button('OK', message(MsgD, destroy))),
+    send(MsgD, transient_for, Dialog),
+    send(MsgD, default_button, 'OK'),
+    send(MsgD, open_centered, Dialog).
+handle_comprobar_result(Dialog, no_solution, _Solution) :-
     show_error_dialog(Dialog, 'El puzzle no tiene solucion').
-handle_surrender_result(Dialog, multiple_solutions, Solution) :-
+handle_comprobar_result(Dialog, multiple_solutions, Solution) :-
     gui_apply_solution(Dialog, _GivenMask, Solution).
-handle_surrender_result(Dialog, invalid_input(Reason), _Solution) :-
+handle_comprobar_result(Dialog, invalid_input(Reason), _Solution) :-
     format(atom(Msg), 'Input invalido: ~w', [Reason]),
     show_error_dialog(Dialog, Msg).
-handle_surrender_result(Dialog, inconsistent(Reason), _Solution) :-
+handle_comprobar_result(Dialog, inconsistent(Reason), _Solution) :-
     format(atom(Msg), 'Puzzle inconsistente: ~w', [Reason]),
     show_error_dialog(Dialog, Msg).
 
-%% calculate_score(+UserBoard, +Solution, -Percent)
-% Calcula el porcentaje de celdas correctas.
-calculate_score(UserBoard, Solution, Percent) :-
+%% calculate_score(+UserBoard, +Solution, +InitialSnapshot, -Percent)
+% Calcula el porcentaje de celdas correctas SOLO para celdas que estaban
+% originalmente vacías (no pistas).Formula: (Correct_User_Placements / Total_Empty_Cells) * 100.
+calculate_score(UserBoard, Solution, InitialSnapshot, Percent) :-
     flatten(UserBoard, UserCells),
     flatten(Solution, SolutionCells),
-    findall(true, (nth1(I, UserCells, U), nth1(I, SolutionCells, S), U =:= S), Correct),
+    flatten(InitialSnapshot, OriginalCells),
+    % Encontrar índices de celdas que estaban vacías originalmente
+    findall(I, (nth1(I, OriginalCells, 0), I > 0), EmptyIndices),
+    length(EmptyIndices, TotalEmpty),
+    % Contar celdas correctas solo en esas posiciones
+    findall(true, (
+        member(I, EmptyIndices),
+        nth1(I, UserCells, U),
+        nth1(I, SolutionCells, S),
+        U > 0,
+        U =:= S
+    ), Correct),
     length(Correct, CorrectCount),
-    length(SolutionCells, TotalCells),
-    Percent is round(CorrectCount * 100 / TotalCells).
+    % Evitar división por cero
+    (   TotalEmpty > 0
+    ->  Percent is round(CorrectCount * 100 / TotalEmpty)
+    ).
 
 %% on_return_click(+Dialog)
 % Maneja el botón "Volver":
-% detener timer, desbloquear todo, restaurar modo normal.
+% desbloquear todo, restaurar modo normal.
 on_return_click(Dialog) :-
-    stop_practice_timer,
-
     % Desbloquear todas las celdas
     unlock_all_cells(Dialog),
 
@@ -632,7 +814,7 @@ on_return_click(Dialog) :-
     hide_practice_controls(Dialog),
 
     % Limpiar estado de practice
-    retractall(practice_state(_, _, _, _, _)),
+    retractall(practice_state(_, _, _)),
 
     update_status(Dialog, 'Modo Normal').
 
@@ -649,12 +831,8 @@ unlock_all_cells(Dialog) :-
 % Oculta los controles de practice y muestra los normales.
 hide_practice_controls(Dialog) :-
     % Ocultar practice controls
-    (   get(Dialog, member, practice_timer, PracticeTimer)
-    ->  send(PracticeTimer, displayed, @off)
-    ;   true
-    ),
-    (   get(Dialog, member, 'Rendirse', BtnRendirse)
-    ->  send(BtnRendirse, displayed, @off)
+    (   get(Dialog, member, 'Comprobar', BtnComprobar)
+    ->  send(BtnComprobar, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Volver', BtnVolver)
@@ -720,65 +898,6 @@ hide_practice_controls(Dialog) :-
 show_exercise_button(Dialog, N) :-
     (   get(Dialog, member, N, Btn)
     ->  send(Btn, displayed, @on)
-    ;   true
-    ).
-
-% ============================================================
-% Timer para Practice Mode
-% ============================================================
-
-%% start_practice_timer(+Dialog)
-% Inicia el timer de practice (display timer).
-start_practice_timer(Dialog) :-
-    practice_state(practice, Snapshot, false, PollTimer),
-    % Obtener tiempo actual como inicio
-    get_time(StartTime),
-
-    % Crear timer que se actualiza cada segundo
-    new(TimerObj, timer(1000, message(@prolog, update_practice_timer, Dialog, StartTime))),
-    send(TimerObj, start),
-
-    % Mostrar 00:00 inicialmente
-    get(Dialog, member, practice_timer, PracticeTimer),
-    send(PracticeTimer, selection, '00:00'),
-
-    % Actualizar estado: preservar el PollTimer en el 4to arg, nuevo DisplayTimer en 5to
-    retractall(practice_state(practice, _, _, _)),
-    asserta(practice_state(practice, Snapshot, true, PollTimer, TimerObj)).
-
- %% stop_practice_timer
-% Detiene el timer de practice (polling y display) de forma segura.
-stop_practice_timer :-
-    (   practice_state(practice, Snapshot, Running, PollTimer, DisplayTimer)
-    ->  % Destruir timer de polling si existe
-        ( PollTimer \== @nil -> catch(send(PollTimer, destroy), _, true) ; true ),
-        % Destruir timer de display si estaba corriendo
-        (   Running == true, DisplayTimer \== @nil
-        ->  catch(send(DisplayTimer, destroy), _, true)
-        ;   true
-        ),
-        retractall(practice_state(practice, _, _, _, _)),
-        asserta(practice_state(practice, Snapshot, false, @nil, @nil))
-    ;   true
-    ).
-
-%% update_practice_timer(+Dialog, +StartTime)
-% Actualiza el display del timer (llamado cada segundo).
-update_practice_timer(Dialog, StartTime) :-
-    % Obtener tiempo actual del sistema
-    get_time(Now),
-
-    % Calcular elapsed
-    Elapsed is round(Now - StartTime),
-    Minutes is Elapsed // 60,
-    Seconds is Elapsed mod 60,
-
-    % Formatear MM:SS
-    format(atom(TimeStr), '~02d:~02d', [Minutes, Seconds]),
-
-    % Actualizar display
-    (   get(Dialog, member, practice_timer, PracticeTimer)
-    ->  send(PracticeTimer, selection, TimeStr)
     ;   true
     ).
 
