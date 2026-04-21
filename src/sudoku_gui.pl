@@ -401,7 +401,7 @@ on_practice_click(Dialog) :-
 % Cuenta la cantidad de pistas (celdas no vacías) en el tablero.
 count_clues(Board, Count) :-
     flatten(Board, Cells),
-    include(>(0), Cells, Clues),
+    exclude(==(0), Cells, Clues),
     length(Clues, Count).
 
 %% start_practice_mode(+Dialog, +Board)
@@ -747,9 +747,7 @@ update_practice_timer(Dialog, StartTime) :-
 % Muestra un diálogo de error con botón OK.
 show_error_dialog(Dialog, Message) :-
     new(ErrDialog, dialog('Error')),
-    send(ErrDialog, append, text_item(message, Message)),
-    get(ErrDialog, member, message, MsgItem),
-    send(MsgItem, editable, @off),
+    send(ErrDialog, append, text(Message)),
     send(ErrDialog, append, button('OK', message(ErrDialog, destroy))),
     send(ErrDialog, transient_for, Dialog),
     send(ErrDialog, default_button, 'OK'),
