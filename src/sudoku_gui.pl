@@ -48,11 +48,11 @@ open_gui :-
 
     % Headers
     new(T1, text('Ingresar datos')),
-    send(T1, font, font(pixels, bold, 14)),
+    send(T1, font, font(helvetica, bold, 14)),
     send(Dialog, display, T1, point(10, 10)),
 
     new(T2, text('Resultados')),
-    send(T2, font, font(pixels, bold, 14)),
+    send(T2, font, font(helvetica, bold, 14)),
     send(Dialog, display, T2, point(410, 10)),
 
     % === PANEL DE BOTONES ===
@@ -60,7 +60,7 @@ open_gui :-
 
     % --- Izquierda: Ejercicios ---
     send(Dialog, display, new(LblEx, text('Ejercicios:')), point(10, Row1Y)),
-    send(LblEx, font, font(pixels, bold, 12)),
+    send(LblEx, font, font(helvetica, bold, 12)),
     forall(between(1, 5, N),
            (  XX is 100 + (N - 1) * 55,
               send(Dialog, display, button(N, message(@prolog, load_exercise, Dialog, N)), point(XX, Row1Y))
@@ -68,7 +68,7 @@ open_gui :-
 
     % --- Derecha: Nuevo Puzzle ---
     send(Dialog, display, new(LblPu, text('Nuevo Puzzle:')), point(420, Row1Y)),
-    send(LblPu, font, font(pixels, bold, 12)),
+    send(LblPu, font, font(helvetica, bold, 12)),
     send(Dialog, display, button('Easy',   message(@prolog, on_new_puzzle_click, Dialog, easy)),   point(540, Row1Y)),
     send(Dialog, display, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium)), point(620, Row1Y)),
     send(Dialog, display, button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard)),   point(715, Row1Y)),
@@ -76,7 +76,7 @@ open_gui :-
     % --- Fila inferior: Status a la izquierda, botones a la derecha ---
     Row2Y = 450,
     new(StatusLabel, text_item(status_label, 'Listo')),
-    send(StatusLabel, font, font(pixels, normal, 10)),
+    send(StatusLabel, font, font(helvetica, normal, 10)),
     send(StatusLabel, colour, colour(darkblue)),
     send(StatusLabel, editable, @off),
     send(StatusLabel, length, 25),
@@ -91,24 +91,24 @@ send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dia
 
     % === Practice Mode Controls (hidden initially) ===
     send(Dialog, display, new(PracticeTimer, text_item(practice_timer, '00:00')), point(10, Row2Y)),
-    send(PracticeTimer, font, font(pixels, monospaced, 12)),
+    send(PracticeTimer, font, font(helvetica, monospaced, 12)),
     send(PracticeTimer, editable, @off),
     send(PracticeTimer, length, 6),
-    send(PracticeTimer, visible, @off),
+    send(PracticeTimer, displayed, @off),
 
     send(Dialog, display, button('Rendirse', message(@prolog, on_surrender_click, Dialog)), point(100, Row2Y)),
     send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(180, Row2Y)),
 
     % Ocultar botones de practice inicialmente
     get(Dialog, member, practice_timer, PracticeTimer),
-    send(PracticeTimer, visible, @off),
+    send(PracticeTimer, displayed, @off),
     get(Dialog, member, practice_timer, PracticeTimer),  % noqa: F841
-    (   get(Dialog, member, Rendirse, BtnRendirse)
-    ->  send(BtnRendirse, visible, @off)
+    (   get(Dialog, member, 'Rendirse', BtnRendirse)
+    ->  send(BtnRendirse, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, Volver, BtnVolver)
-    ->  send(BtnVolver, visible, @off)
+    (   get(Dialog, member, 'Volver', BtnVolver)
+    ->  send(BtnVolver, displayed, @off)
     ;   true
     ),
 
@@ -122,7 +122,7 @@ create_cell(Dialog, Prefix, Row, Col, OffsetX) :-
     send(CellItem, length, 1),
     send(CellItem, alignment, center),
     send(CellItem, size, size(34, 20)),
-    send(CellItem, font, font(pixels, monospaced, 14)),
+    send(CellItem, font, font(helvetica, monospaced, 14)),
     get_row_y(Row, Y),
     get_col_x(Col, XBase),
     X is XBase + OffsetX,
@@ -149,7 +149,7 @@ draw_block_dividers(Dialog, OX, OY, Step, OffX) :-
 
 draw_line(Parent, X1, Y1, X2, Y2) :-
     new(L, line(X1, Y1, X2, Y2)),
-    send(L, pen, 2),
+    send(L, pen, 3),
     send(L, colour, colour(black)),
     send(Parent, display, L).
 
@@ -440,46 +440,46 @@ lock_given_cells(Dialog, Board) :-
 % Oculta controles normales y muestra los de practice.
 show_practice_controls(Dialog) :-
     % Ocultar botones normales
-    (   get(Dialog, member, Resolver, BtnResolver)
-    ->  send(BtnResolver, visible, @off)
+    (   get(Dialog, member, 'Resolver', BtnResolver)
+    ->  send(BtnResolver, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Limpiar Todo', BtnLimpiar)
-    ->  send(BtnLimpiar, visible, @off)
+    ->  send(BtnLimpiar, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Practicar', BtnPracticar)
-    ->  send(BtnPracticar, visible, @off)
+    ->  send(BtnPracticar, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, Easy, BtnEasy)
-    ->  send(BtnEasy, visible, @off)
+    (   get(Dialog, member, 'Easy', BtnEasy)
+    ->  send(BtnEasy, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, Medium, BtnMedium)
-    ->  send(BtnMedium, visible, @off)
+    (   get(Dialog, member, 'Medium', BtnMedium)
+    ->  send(BtnMedium, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, Hard, BtnHard)
-    ->  send(BtnHard, visible, @off)
+    (   get(Dialog, member, 'Hard', BtnHard)
+    ->  send(BtnHard, displayed, @off)
     ;   true
     ),
 
     % Ocultar labels de ejercicios
-    (   get(Dialog, member, Ejercicios, LblEjercicios)
-    ->  send(LblEjercicios, visible, @off)
+    (   get(Dialog, member, 'Ejercicios', LblEjercicios)
+    ->  send(LblEjercicios, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Nuevo Puzzle', LblNuevo)
-    ->  send(LblNuevo, visible, @off)
+    ->  send(LblNuevo, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Ingresar datos', LblInput)
-    ->  send(LblInput, visible, @off)
+    ->  send(LblInput, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Resultados', LblResult)
-    ->  send(LblResult, visible, @off)
+    ->  send(LblResult, displayed, @off)
     ;   true
     ),
 
@@ -488,21 +488,21 @@ show_practice_controls(Dialog) :-
 
     % Mostrar controles de practice
     (   get(Dialog, member, practice_timer, PracticeTimer)
-    ->  send(PracticeTimer, visible, @on)
+    ->  send(PracticeTimer, displayed, @on)
     ;   true
     ),
-    (   get(Dialog, member, Rendirse, BtnRendirse)
-    ->  send(BtnRendirse, visible, @on)
+    (   get(Dialog, member, 'Rendirse', BtnRendirse)
+    ->  send(BtnRendirse, displayed, @on)
     ;   true
     ),
-    (   get(Dialog, member, Volver, BtnVolver)
-    ->  send(BtnVolver, visible, @on)
+    (   get(Dialog, member, 'Volver', BtnVolver)
+    ->  send(BtnVolver, displayed, @on)
     ;   true
     ).
 
 hide_exercise_button(Dialog, N) :-
     (   get(Dialog, member, N, Btn)
-    ->  send(Btn, visible, @off)
+    ->  send(Btn, displayed, @off)
     ;   true
     ).
 
@@ -620,59 +620,59 @@ unlock_all_cells(Dialog) :-
 hide_practice_controls(Dialog) :-
     % Ocultar practice controls
     (   get(Dialog, member, practice_timer, PracticeTimer)
-    ->  send(PracticeTimer, visible, @off)
+    ->  send(PracticeTimer, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, Rendirse, BtnRendirse)
-    ->  send(BtnRendirse, visible, @off)
+    (   get(Dialog, member, 'Rendirse', BtnRendirse)
+    ->  send(BtnRendirse, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, Volver, BtnVolver)
-    ->  send(BtnVolver, visible, @off)
+    (   get(Dialog, member, 'Volver', BtnVolver)
+    ->  send(BtnVolver, displayed, @off)
     ;   true
     ),
 
     % Mostrar botones normales
-    (   get(Dialog, member, Resolver, BtnResolver)
-    ->  send(BtnResolver, visible, @on)
+    (   get(Dialog, member, 'Resolver', BtnResolver)
+    ->  send(BtnResolver, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Limpiar Todo', BtnLimpiar)
-    ->  send(BtnLimpiar, visible, @on)
+    ->  send(BtnLimpiar, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Practicar', BtnPracticar)
-    ->  send(BtnPracticar, visible, @on)
+    ->  send(BtnPracticar, displayed, @on)
     ;   true
     ),
-    (   get(Dialog, member, Easy, BtnEasy)
-    ->  send(BtnEasy, visible, @on)
+    (   get(Dialog, member, 'Easy', BtnEasy)
+    ->  send(BtnEasy, displayed, @on)
     ;   true
     ),
-    (   get(Dialog, member, Medium, BtnMedium)
-    ->  send(BtnMedium, visible, @on)
+    (   get(Dialog, member, 'Medium', BtnMedium)
+    ->  send(BtnMedium, displayed, @on)
     ;   true
     ),
-    (   get(Dialog, member, Hard, BtnHard)
-    ->  send(BtnHard, visible, @on)
+    (   get(Dialog, member, 'Hard', BtnHard)
+    ->  send(BtnHard, displayed, @on)
     ;   true
     ),
 
     % Mostrar labels
-    (   get(Dialog, member, Ejercicios, LblEjercicios)
-    ->  send(LblEjercicios, visible, @on)
+    (   get(Dialog, member, 'Ejercicios', LblEjercicios)
+    ->  send(LblEjercicios, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Nuevo Puzzle', LblNuevo)
-    ->  send(LblNuevo, visible, @on)
+    ->  send(LblNuevo, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Ingresar datos', LblInput)
-    ->  send(LblInput, visible, @on)
+    ->  send(LblInput, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Resultados', LblResult)
-    ->  send(LblResult, visible, @on)
+    ->  send(LblResult, displayed, @on)
     ;   true
     ),
 
@@ -681,7 +681,7 @@ hide_practice_controls(Dialog) :-
 
 show_exercise_button(Dialog, N) :-
     (   get(Dialog, member, N, Btn)
-    ->  send(Btn, visible, @on)
+    ->  send(Btn, displayed, @on)
     ;   true
     ).
 
