@@ -10,7 +10,7 @@
 :- use_module(sudoku_persistence).
 :- use_module(sudoku_validate).
 
-:- dynamic(practice_state/4).
+:- dynamic(practice_state/5).
 
 % Windows XPCE Font Rendering Fix
 :- initialization(fix_pce_fonts).
@@ -411,7 +411,7 @@ count_clues(Board, Count) :-
 start_practice_mode(Dialog, Board) :-
     % Guardar snapshot inicial
     duplicate_term(Board, InitialSnapshot),
-    asserta(practice_state(practice, InitialSnapshot, false, @nil)),
+    asserta(practice_state(practice, InitialSnapshot, false, @nil, @nil)),
 
     % Bloquear celdas iniciales (given)
     lock_given_cells(Dialog, Board),
@@ -518,17 +518,38 @@ hide_exercise_button(Dialog, N) :-
 %% setup_practice_edit_handler(+Dialog)
 % Configura el handler para edición de celdas en modo practice.
 setup_practice_edit_handler(Dialog) :-
-    forall(between(1, 9, Row),
-           forall(between(1, 9, Col),
-                  ( cell_item(Dialog, input, Row, Col, CellItem),
-                    send(CellItem, message, message(@prolog, on_cell_edit_practice, Dialog, Row, Col))
-                  ))).
+    % XPCE text_item no dispara eventos automaticamente, usamos un timer de polling
+    new(PollTimer, timer(300, message(@prolog, check_cell_changes, Dialog))),
+    send(PollTimer, start),
+    practice_state(practice, Snapshot, false, PollTimer, _),
+    retractall(practice_state(practice, _, _, _, _)),
+    asserta(practice_state(practice, Snapshot, false, PollTimer, @nil)).
+
+%% check_cell_changes(+Dialog)
+% Revisa si hubo cambios en las celdas (polling).
+check_cell_changes(Dialog) :-
+    practice_state(practice, _Snapshot, TimerStarted, _PollTimer, _DisplayTimer),
+    (   TimerStarted == true
+    ->  gui_read_board(Dialog, CurrentBoard, _GivenMask),
+        validate_live_practice(Dialog, CurrentBoard)
+    ;   gui_read_board(Dialog, CurrentBoard, _GivenMask),
+        flatten(CurrentBoard, Cells),
+        exclude(==(0), Cells, NonEmpty),
+        length(NonEmpty, Count),
+        (   Count > 0
+        ->  start_practice_timer(Dialog),
+            gui_read_board(Dialog, CurrentBoard2, _GivenMask2),
+            validate_live_practice(Dialog, CurrentBoard2)
+        ;   true
+        )
+    ).
+
 
 %% on_cell_edit_practice(+Dialog, +Row, +Col)
 % Maneja la edición de una celda en modo practice.
 % Inicia el timer si no ha-started, y valida en vivo.
 on_cell_edit_practice(Dialog, _Row, _Col) :-
-    practice_state(practice, _InitialSnapshot, TimerStarted, _TimerObj),
+    practice_state(practice, _InitialSnapshot, TimerStarted, _PollTimer, _DisplayTimer),
 
     % Verificar si el timer ya Started - si no, iniciarlo
     (   TimerStarted == false
@@ -555,7 +576,7 @@ validate_live_practice(Dialog, Board) :-
 % detener timer, resolver, comparar, mostrar resultado.
 on_surrender_click(Dialog) :-
     stop_practice_timer,
-    practice_state(practice, InitialSnapshot, _, _),
+    practice_state(practice, InitialSnapshot, _, _PollTimer, _DisplayTimer),
 
     % Resolver el puzzle inicial
     solve_status(InitialSnapshot, SolverStatus, Solution),
@@ -611,7 +632,7 @@ on_return_click(Dialog) :-
     hide_practice_controls(Dialog),
 
     % Limpiar estado de practice
-    retractall(practice_state(_, _, _, _)),
+    retractall(practice_state(_, _, _, _, _)),
 
     update_status(Dialog, 'Modo Normal').
 
@@ -707,9 +728,9 @@ show_exercise_button(Dialog, N) :-
 % ============================================================
 
 %% start_practice_timer(+Dialog)
-% Inicia el timer de practice.
+% Inicia el timer de practice (display timer).
 start_practice_timer(Dialog) :-
-    practice_state(practice, Snapshot, false, _),
+    practice_state(practice, Snapshot, false, PollTimer),
     % Obtener tiempo actual como inicio
     get_time(StartTime),
 
@@ -721,17 +742,23 @@ start_practice_timer(Dialog) :-
     get(Dialog, member, practice_timer, PracticeTimer),
     send(PracticeTimer, selection, '00:00'),
 
-    % Actualizar estado con el tiempo de inicio
-    retract(practice_state(practice, Snapshot, false, _)),
-    asserta(practice_state(practice, Snapshot, true, TimerObj)).
+    % Actualizar estado: preservar el PollTimer en el 4to arg, nuevo DisplayTimer en 5to
+    retractall(practice_state(practice, _, _, _)),
+    asserta(practice_state(practice, Snapshot, true, PollTimer, TimerObj)).
 
-%% stop_practice_timer
-% Detiene el timer de practice de forma segura.
+ %% stop_practice_timer
+% Detiene el timer de practice (polling y display) de forma segura.
 stop_practice_timer :-
-    (   practice_state(practice, Snapshot, true, TimerObj)
-    ->  ( TimerObj \== @nil -> catch(send(TimerObj, destroy), _, true) ; true ),
-        retractall(practice_state(practice, _, _, _)),
-        asserta(practice_state(practice, Snapshot, false, @nil))
+    (   practice_state(practice, Snapshot, Running, PollTimer, DisplayTimer)
+    ->  % Destruir timer de polling si existe
+        ( PollTimer \== @nil -> catch(send(PollTimer, destroy), _, true) ; true ),
+        % Destruir timer de display si estaba corriendo
+        (   Running == true, DisplayTimer \== @nil
+        ->  catch(send(DisplayTimer, destroy), _, true)
+        ;   true
+        ),
+        retractall(practice_state(practice, _, _, _, _)),
+        asserta(practice_state(practice, Snapshot, false, @nil, @nil))
     ;   true
     ).
 
