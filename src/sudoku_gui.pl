@@ -8,6 +8,20 @@
 :- use_module(library(pce)).
 :- use_module(sudoku_solver).
 :- use_module(sudoku_persistence).
+:- use_module(sudoku_validate).
+
+:- dynamic(practice_state/4).
+
+% Windows XPCE Font Rendering Fix
+:- initialization(fix_pce_fonts).
+fix_pce_fonts :-
+    (   current_prolog_flag(windows, true)
+    ->  send(@pce, send_method, send_method(alias_font, vector(name, font), 
+            message(@receiver, font, @arg1, @arg2))), % placeholder
+        % We will just use the correct font object on Windows during creation or ignore missing alias
+        true
+    ;   true
+    ).
 
 cell_name(Prefix, Row, Col, NameAtom) :-
     atomic_list_concat([Prefix, '_cell_', Row, '_', Col], NameAtom).
@@ -68,12 +82,35 @@ open_gui :-
     send(StatusLabel, length, 25),
     send(Dialog, display, StatusLabel, point(10, Row2Y)),
 
-    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(380, Row2Y)),
+send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(380, Row2Y)),
     send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(460, Row2Y)),
     send(Dialog, display, button('Salir', message(@prolog, on_exit_click, Dialog)), point(560, Row2Y)),
     send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(620, Row2Y)),
     send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(680, Row2Y)),
+    send(Dialog, display, button('Practicar', message(@prolog, on_practice_click, Dialog)), point(620, Row2Y)),
 
+    % === Practice Mode Controls (hidden initially) ===
+    send(Dialog, display, new(PracticeTimer, text_item(practice_timer, '00:00')), point(10, Row2Y)),
+    send(PracticeTimer, font, font(pixels, monospaced, 12)),
+    send(PracticeTimer, editable, @off),
+    send(PracticeTimer, length, 6),
+    send(PracticeTimer, visible, @off),
+
+    send(Dialog, display, button('Rendirse', message(@prolog, on_surrender_click, Dialog)), point(100, Row2Y)),
+    send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(180, Row2Y)),
+
+    % Ocultar botones de practice inicialmente
+    get(Dialog, member, practice_timer, PracticeTimer),
+    send(PracticeTimer, visible, @off),
+    get(Dialog, member, practice_timer, PracticeTimer),  % noqa: F841
+    (   get(Dialog, member, Rendirse, BtnRendirse)
+    ->  send(BtnRendirse, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, Volver, BtnVolver)
+    ->  send(BtnVolver, visible, @off)
+    ;   true
+    ),
 
     send(Dialog, open, point(50, 50)).
 
@@ -113,7 +150,7 @@ draw_block_dividers(Dialog, OX, OY, Step, OffX) :-
 draw_line(Parent, X1, Y1, X2, Y2) :-
     new(L, line(X1, Y1, X2, Y2)),
     send(L, pen, 2),
-    send(L, colour, colour('#666666')),
+    send(L, colour, colour(black)),
     send(Parent, display, L).
 
 % Limpia la grilla result (establece todas las celdas a vacío).
@@ -344,3 +381,376 @@ update_status(Dialog, Message, Colour) :-
     get(Dialog, member, status_label, StatusLabel),
     send(StatusLabel, selection, Message),
     send(StatusLabel, colour, Colour).
+
+% ============================================================
+% Practice Mode Handlers
+% ============================================================
+
+%% on_practice_click(+Dialog)
+% Maneja el click en botón "Practicar".
+% Verifica que haya al menos 17 pistas antes de iniciar.
+on_practice_click(Dialog) :-
+    gui_read_board(Dialog, Board, _GivenMask),
+    count_clues(Board, ClueCount),
+    (   ClueCount < 17
+    ->  show_error_dialog(Dialog, 'Se requieren 17 pistas como minimo para usar esta opcion')
+    ;   start_practice_mode(Dialog, Board)
+    ).
+
+%% count_clues(+Board, -Count)
+% Cuenta la cantidad de pistas (celdas no vacías) en el tablero.
+count_clues(Board, Count) :-
+    flatten(Board, Cells),
+    include(>(0), Cells, Clues),
+    length(Clues, Count).
+
+%% start_practice_mode(+Dialog, +Board)
+% Inicia el modo practice: bloquear celdas iniciales,
+% guardar snapshot, mostrar controles de practice.
+start_practice_mode(Dialog, Board) :-
+    % Guardar snapshot inicial
+    duplicate_term(Board, InitialSnapshot),
+    asserta(practice_state(practice, InitialSnapshot, false, @nil)),
+
+    % Bloquear celdas iniciales (given)
+    lock_given_cells(Dialog, Board),
+
+    % Mostrar controles de practice
+    show_practice_controls(Dialog),
+
+    % Configurar edit handler para validación en vivo
+    setup_practice_edit_handler(Dialog),
+
+    update_status(Dialog, 'Modo Practice: Edita una celda vacia para comenzar').
+
+%% lock_given_cells(+Dialog, +Board)
+% Bloquea las celdas que tienen pistas (no son editables).
+lock_given_cells(Dialog, Board) :-
+    forall( ( between(1, 9, Row),
+             between(1, 9, Col),
+             nth1(Row, Board, RowList),
+             nth1(Col, RowList, Val),
+             Val > 0
+           ),
+           ( cell_item(Dialog, input, Row, Col, CellItem),
+             send(CellItem, editable, @off)
+           )).
+
+%% show_practice_controls(+Dialog)
+% Oculta controles normales y muestra los de practice.
+show_practice_controls(Dialog) :-
+    % Ocultar botones normales
+    (   get(Dialog, member, Resolver, BtnResolver)
+    ->  send(BtnResolver, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Limpiar Todo', BtnLimpiar)
+    ->  send(BtnLimpiar, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Practicar', BtnPracticar)
+    ->  send(BtnPracticar, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, Easy, BtnEasy)
+    ->  send(BtnEasy, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, Medium, BtnMedium)
+    ->  send(BtnMedium, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, Hard, BtnHard)
+    ->  send(BtnHard, visible, @off)
+    ;   true
+    ),
+
+    % Ocultar labels de ejercicios
+    (   get(Dialog, member, Ejercicios, LblEjercicios)
+    ->  send(LblEjercicios, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Nuevo Puzzle', LblNuevo)
+    ->  send(LblNuevo, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Ingresar datos', LblInput)
+    ->  send(LblInput, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Resultados', LblResult)
+    ->  send(LblResult, visible, @off)
+    ;   true
+    ),
+
+    % Ocultar botones de ejercicios
+    forall(between(1, 5, N), hide_exercise_button(Dialog, N)),
+
+    % Mostrar controles de practice
+    (   get(Dialog, member, practice_timer, PracticeTimer)
+    ->  send(PracticeTimer, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, Rendirse, BtnRendirse)
+    ->  send(BtnRendirse, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, Volver, BtnVolver)
+    ->  send(BtnVolver, visible, @on)
+    ;   true
+    ).
+
+hide_exercise_button(Dialog, N) :-
+    (   get(Dialog, member, N, Btn)
+    ->  send(Btn, visible, @off)
+    ;   true
+    ).
+
+%% setup_practice_edit_handler(+Dialog)
+% Configura el handler para edición de celdas en modo practice.
+setup_practice_edit_handler(Dialog) :-
+    forall(between(1, 9, Row),
+           forall(between(1, 9, Col),
+                  ( cell_item(Dialog, input, Row, Col, CellItem),
+                    send(CellItem, message, message(@prolog, on_cell_edit_practice, Dialog, Row, Col))
+                  ))).
+
+%% on_cell_edit_practice(+Dialog, +Row, +Col)
+% Maneja la edición de una celda en modo practice.
+% Inicia el timer si no ha-started, y valida en vivo.
+on_cell_edit_practice(Dialog, _Row, _Col) :-
+    practice_state(practice, _InitialSnapshot, TimerStarted, _TimerObj),
+
+    % Verificar si el timer ya Started - si no, iniciarlo
+    (   TimerStarted == false
+    ->  start_practice_timer(Dialog)
+    ;   true
+    ),
+
+    % Validación en vivo
+    gui_read_board(Dialog, CurrentBoard, _GivenMask),
+    validate_live_practice(Dialog, CurrentBoard).
+
+%% validate_live_practice(+Dialog, +Board)
+% Valida las reglas del Sudoku en vivo durante practice.
+validate_live_practice(Dialog, Board) :-
+    validate_board(Board, Status),
+    (   Status == valid
+    ->  update_status(Dialog, 'Validando... sin errores', darkgreen)
+    ;   format(atom(Msg), 'Error: ~w', [Status]),
+        update_status(Dialog, Msg, darkred)
+    ).
+
+%% on_surrender_click(+Dialog)
+% Maneja el botón "Rendirse":
+% detener timer, resolver, comparar, mostrar resultado.
+on_surrender_click(Dialog) :-
+    stop_practice_timer,
+    practice_state(practice, InitialSnapshot, _, _),
+
+    % Resolver el puzzle inicial
+    solve_status(InitialSnapshot, SolverStatus, Solution),
+
+    % Leer el tablero actual del usuario
+    gui_read_board(Dialog, UserBoard, _GivenMask),
+
+    % Comparar con la solución
+    calculate_score(UserBoard, Solution, ScorePercent),
+
+    % Mostrar resultado
+    format(atom(Msg), 'Rendido. Precision: ~w%', [ScorePercent]),
+    update_status(Dialog, Msg, darkblue),
+
+    % Mostrar la solución
+    handle_surrender_result(Dialog, SolverStatus, Solution).
+
+handle_surrender_result(Dialog, solved, Solution) :-
+    gui_apply_solution(Dialog, _GivenMask, Solution).
+handle_surrender_result(Dialog, already_solved, _Solution) :-
+    update_status(Dialog, 'Ya estaba resuelto', darkblue).
+handle_surrender_result(Dialog, no_solution, _Solution) :-
+    show_error_dialog(Dialog, 'El puzzle no tiene solucion').
+handle_surrender_result(Dialog, multiple_solutions, Solution) :-
+    gui_apply_solution(Dialog, _GivenMask, Solution).
+handle_surrender_result(Dialog, invalid_input(Reason), _Solution) :-
+    format(atom(Msg), 'Input invalido: ~w', [Reason]),
+    show_error_dialog(Dialog, Msg).
+handle_surrender_result(Dialog, inconsistent(Reason), _Solution) :-
+    format(atom(Msg), 'Puzzle inconsistente: ~w', [Reason]),
+    show_error_dialog(Dialog, Msg).
+
+%% calculate_score(+UserBoard, +Solution, -Percent)
+% Calcula el porcentaje de celdas correctas.
+calculate_score(UserBoard, Solution, Percent) :-
+    flatten(UserBoard, UserCells),
+    flatten(Solution, SolutionCells),
+    findall(true, (nth1(I, UserCells, U), nth1(I, SolutionCells, S), U =:= S), Correct),
+    length(Correct, CorrectCount),
+    length(SolutionCells, TotalCells),
+    Percent is round(CorrectCount * 100 / TotalCells).
+
+%% on_return_click(+Dialog)
+% Maneja el botón "Volver":
+% detener timer, desbloquear todo, restaurar modo normal.
+on_return_click(Dialog) :-
+    stop_practice_timer,
+
+    % Desbloquear todas las celdas
+    unlock_all_cells(Dialog),
+
+    % Ocultar practice controls, mostrar normales
+    hide_practice_controls(Dialog),
+
+    % Limpiar estado de practice
+    retractall(practice_state(_, _, _, _)),
+
+    update_status(Dialog, 'Modo Normal').
+
+%% unlock_all_cells(+Dialog)
+% Desbloquea todas las celdas de input.
+unlock_all_cells(Dialog) :-
+    forall(between(1, 9, Row),
+           forall(between(1, 9, Col),
+                  ( cell_item(Dialog, input, Row, Col, CellItem),
+                    send(CellItem, editable, @on)
+                  ))).
+
+%% hide_practice_controls(+Dialog)
+% Oculta los controles de practice y muestra los normales.
+hide_practice_controls(Dialog) :-
+    % Ocultar practice controls
+    (   get(Dialog, member, practice_timer, PracticeTimer)
+    ->  send(PracticeTimer, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, Rendirse, BtnRendirse)
+    ->  send(BtnRendirse, visible, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, Volver, BtnVolver)
+    ->  send(BtnVolver, visible, @off)
+    ;   true
+    ),
+
+    % Mostrar botones normales
+    (   get(Dialog, member, Resolver, BtnResolver)
+    ->  send(BtnResolver, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Limpiar Todo', BtnLimpiar)
+    ->  send(BtnLimpiar, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Practicar', BtnPracticar)
+    ->  send(BtnPracticar, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, Easy, BtnEasy)
+    ->  send(BtnEasy, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, Medium, BtnMedium)
+    ->  send(BtnMedium, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, Hard, BtnHard)
+    ->  send(BtnHard, visible, @on)
+    ;   true
+    ),
+
+    % Mostrar labels
+    (   get(Dialog, member, Ejercicios, LblEjercicios)
+    ->  send(LblEjercicios, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Nuevo Puzzle', LblNuevo)
+    ->  send(LblNuevo, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Ingresar datos', LblInput)
+    ->  send(LblInput, visible, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Resultados', LblResult)
+    ->  send(LblResult, visible, @on)
+    ;   true
+    ),
+
+    % Mostrar botones de ejercicios
+    forall(between(1, 5, N), show_exercise_button(Dialog, N)).
+
+show_exercise_button(Dialog, N) :-
+    (   get(Dialog, member, N, Btn)
+    ->  send(Btn, visible, @on)
+    ;   true
+    ).
+
+% ============================================================
+% Timer para Practice Mode
+% ============================================================
+
+%% start_practice_timer(+Dialog)
+% Inicia el timer de practice.
+start_practice_timer(Dialog) :-
+    practice_state(practice, Snapshot, false, _),
+    % Obtener tiempo actual como inicio
+    get_time(StartTime),
+
+    % Crear timer que se actualiza cada segundo
+    new(TimerObj, timer(1000, message(@prolog, update_practice_timer, Dialog, StartTime))),
+    send(TimerObj, start),
+
+    % Mostrar 00:00 inicialmente
+    get(Dialog, member, practice_timer, PracticeTimer),
+    send(PracticeTimer, selection, '00:00'),
+
+    % Actualizar estado con el tiempo de inicio
+    retract(practice_state(practice, Snapshot, false, _)),
+    asserta(practice_state(practice, Snapshot, true, TimerObj)).
+
+%% stop_practice_timer
+% Detiene el timer de practice.
+stop_practice_timer :-
+    practice_state(practice, Snapshot, true, TimerObj),
+    (   TimerObj \== @nil
+    ->  send(TimerObj, destroy)
+    ;   true
+    ),
+    retract(practice_state(practice, Snapshot, true, _)),
+    asserta(practice_state(practice, Snapshot, false, @nil)).
+
+%% update_practice_timer(+Dialog, +StartTime)
+% Actualiza el display del timer (llamado cada segundo).
+update_practice_timer(Dialog, StartTime) :-
+    % Obtener tiempo actual del sistema
+    get_time(Now),
+
+    % Calcular elapsed
+    Elapsed is round(Now - StartTime),
+    Minutes is Elapsed // 60,
+    Seconds is Elapsed mod 60,
+
+    % Formatear MM:SS
+    format(atom(TimeStr), '~02d:~02d', [Minutes, Seconds]),
+
+    % Actualizar display
+    (   get(Dialog, member, practice_timer, PracticeTimer)
+    ->  send(PracticeTimer, selection, TimeStr)
+    ;   true
+    ).
+
+% ============================================================
+% Dialog de Error
+% ============================================================
+
+%% show_error_dialog(+Dialog, +Message)
+% Muestra un diálogo de error con botón OK.
+show_error_dialog(Dialog, Message) :-
+    new(ErrDialog, dialog('Error')),
+    send(ErrDialog, append, text_item(message, Message)),
+    get(ErrDialog, member, message, MsgItem),
+    send(MsgItem, editable, @off),
+    send(ErrDialog, append, button('OK', message(ErrDialog, destroy))),
+    send(ErrDialog, transient_for, Dialog),
+    send(ErrDialog, default_button, 'OK'),
+    send(ErrDialog, open).
