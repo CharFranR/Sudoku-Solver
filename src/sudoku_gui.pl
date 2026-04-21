@@ -69,9 +69,10 @@ open_gui :-
     send(Dialog, display, StatusLabel, point(10, Row2Y)),
 
     send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(380, Row2Y)),
-    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(490, Row2Y)),
-    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(630, Row2Y)),
-    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(710, Row2Y)),
+    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(460, Row2Y)),
+    send(Dialog, display, button('Salir', message(@prolog, on_exit_click, Dialog)), point(560, Row2Y)),
+    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(620, Row2Y)),
+    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(680, Row2Y)),
 
 
     send(Dialog, open, point(50, 50)).
@@ -143,6 +144,10 @@ on_clear_click(Dialog) :-
     clear_input_grid(Dialog),
     clear_result_grid(Dialog),
     update_status(Dialog, '').
+
+% Handler del botón Salir
+on_exit_click(Dialog) :-
+    send(Dialog, destroy).
 
 % Handler del botón Resolver: lee, resuelve y actualiza la grilla.
 on_resolver_click(Dialog) :-
@@ -230,7 +235,8 @@ read_cell(Dialog, Prefix, Row, Col, Cell, Clue) :-
         N >= 1, N =< 9
     ->  Cell = N,
         Clue = true
-    ;   throw(invalid_cell(Row, Col, Sel0))
+    ;   Cell = 0,
+        Clue = false
     ).
 
 % Aplica la solución a la grilla result.
