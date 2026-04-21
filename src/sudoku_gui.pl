@@ -91,13 +91,14 @@ open_gui :-
 
     % === Practice Mode Controls (hidden initially) ===
     send(Dialog, display, new(PracticeTimer, text_item(practice_timer, '00:00')), point(480, Row2Y)),
+    send(PracticeTimer, label, ''),
     send(PracticeTimer, font, font(helvetica, monospaced, 12)),
     send(PracticeTimer, editable, @off),
     send(PracticeTimer, length, 6),
     send(PracticeTimer, displayed, @off),
 
-    send(Dialog, display, button('Rendirse', message(@prolog, on_surrender_click, Dialog)), point(560, Row2Y)),
-    send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(630, Row2Y)),
+    send(Dialog, display, button('Rendirse', message(@prolog, on_surrender_click, Dialog)), point(545, Row2Y)),
+    send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(615, Row2Y)),
 
     % Ocultar botones de practice inicialmente
     get(Dialog, member, practice_timer, PracticeTimer),
@@ -725,15 +726,14 @@ start_practice_timer(Dialog) :-
     asserta(practice_state(practice, Snapshot, true, TimerObj)).
 
 %% stop_practice_timer
-% Detiene el timer de practice.
+% Detiene el timer de practice de forma segura.
 stop_practice_timer :-
-    practice_state(practice, Snapshot, true, TimerObj),
-    (   TimerObj \== @nil
-    ->  send(TimerObj, destroy)
+    (   practice_state(practice, Snapshot, true, TimerObj)
+    ->  ( TimerObj \== @nil -> catch(send(TimerObj, destroy), _, true) ; true ),
+        retractall(practice_state(practice, _, _, _)),
+        asserta(practice_state(practice, Snapshot, false, @nil))
     ;   true
-    ),
-    retract(practice_state(practice, Snapshot, true, _)),
-    asserta(practice_state(practice, Snapshot, false, @nil)).
+    ).
 
 %% update_practice_timer(+Dialog, +StartTime)
 % Actualiza el display del timer (llamado cada segundo).
