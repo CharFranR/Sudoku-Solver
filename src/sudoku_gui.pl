@@ -82,22 +82,22 @@ open_gui :-
     send(StatusLabel, length, 25),
     send(Dialog, display, StatusLabel, point(10, Row2Y)),
 
-send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(380, Row2Y)),
-    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(460, Row2Y)),
-    send(Dialog, display, button('Salir', message(@prolog, on_exit_click, Dialog)), point(560, Row2Y)),
-    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(620, Row2Y)),
-    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(680, Row2Y)),
-    send(Dialog, display, button('Practicar', message(@prolog, on_practice_click, Dialog)), point(620, Row2Y)),
+    send(Dialog, display, button('Resolver', message(@prolog, on_resolver_click, Dialog)), point(300, Row2Y)),
+    send(Dialog, display, button('Limpiar Todo', message(@prolog, on_clear_click, Dialog)), point(380, Row2Y)),
+    send(Dialog, display, button('Practicar', message(@prolog, on_practice_click, Dialog)), point(480, Row2Y)),
+    send(Dialog, display, button('Save', message(@prolog, on_save_click, Dialog)), point(560, Row2Y)),
+    send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(620, Row2Y)),
+    send(Dialog, display, button('Salir', message(@prolog, on_exit_click, Dialog)), point(680, Row2Y)),
 
     % === Practice Mode Controls (hidden initially) ===
-    send(Dialog, display, new(PracticeTimer, text_item(practice_timer, '00:00')), point(10, Row2Y)),
+    send(Dialog, display, new(PracticeTimer, text_item(practice_timer, '00:00')), point(480, Row2Y)),
     send(PracticeTimer, font, font(helvetica, monospaced, 12)),
     send(PracticeTimer, editable, @off),
     send(PracticeTimer, length, 6),
     send(PracticeTimer, displayed, @off),
 
-    send(Dialog, display, button('Rendirse', message(@prolog, on_surrender_click, Dialog)), point(100, Row2Y)),
-    send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(180, Row2Y)),
+    send(Dialog, display, button('Rendirse', message(@prolog, on_surrender_click, Dialog)), point(560, Row2Y)),
+    send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(630, Row2Y)),
 
     % Ocultar botones de practice inicialmente
     get(Dialog, member, practice_timer, PracticeTimer),
@@ -452,6 +452,14 @@ show_practice_controls(Dialog) :-
     ->  send(BtnPracticar, displayed, @off)
     ;   true
     ),
+    (   get(Dialog, member, 'Save', BtnSave)
+    ->  send(BtnSave, displayed, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Open', BtnOpen)
+    ->  send(BtnOpen, displayed, @off)
+    ;   true
+    ),
     (   get(Dialog, member, 'Easy', BtnEasy)
     ->  send(BtnEasy, displayed, @off)
     ;   true
@@ -643,6 +651,14 @@ hide_practice_controls(Dialog) :-
     ),
     (   get(Dialog, member, 'Practicar', BtnPracticar)
     ->  send(BtnPracticar, displayed, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Save', BtnSave)
+    ->  send(BtnSave, displayed, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, 'Open', BtnOpen)
+    ->  send(BtnOpen, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Easy', BtnEasy)
