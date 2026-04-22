@@ -169,6 +169,54 @@ test(exercise_5_resolves) :-
     exercise(5, B),
     solve_status(B, solved, _).
 
+%% === generate_puzzle/2 ===
+
+%% Test: generate_puzzle returns 9x9 matrix
+test(generate_puzzle_returns_9x9_matrix) :-
+    generate_puzzle(easy, Puzzle),
+    is_list(Puzzle),
+    length(Puzzle, 9),
+    forall(member(Row, Puzzle),
+           (is_list(Row), length(Row, 9))).
+
+%% Test: generate_puzzle returns valid values (0-9)
+test(generate_puzzle_values_in_range) :-
+    generate_puzzle(easy, Puzzle),
+    forall(member(Row, Puzzle),
+           forall(member(Cell, Row),
+                  between(0, 9, Cell))).
+
+%% Test: easy puzzle has 35-40 clues
+test(easy_puzzle_has_35_to_40_clues) :-
+    generate_puzzle(easy, Puzzle),
+    count_clues(Puzzle, Count),
+    Count >= 35,
+    Count =< 40.
+
+%% Test: medium puzzle has 27-32 clues
+test(medium_puzzle_has_27_to_32_clues) :-
+    generate_puzzle(medium, Puzzle),
+    count_clues(Puzzle, Count),
+    Count >= 27,
+    Count =< 32.
+
+%% Test: hard puzzle has 22-27 clues
+test(hard_puzzle_has_22_to_27_clues) :-
+    generate_puzzle(hard, Puzzle),
+    count_clues(Puzzle, Count),
+    Count >= 22,
+    Count =< 27.
+
+%% Test: generated puzzle has exactly one solution
+test(generated_puzzle_has_one_solution) :-
+    generate_puzzle(easy, Puzzle),
+    has_multiple_solutions(Puzzle, false).
+
+%% Test: generated puzzle is consistent (no duplicate non-zero values in row/col/block)
+test(generated_puzzle_is_consistent) :-
+    generate_puzzle(easy, Puzzle),
+    validate_board(Puzzle, ok).
+
 %% Helper: checks that a board is fully filled (no zeros)
 is_complete_board(Board) :-
     forall(
@@ -178,5 +226,11 @@ is_complete_board(Board) :-
             (integer(Cell), Cell >= 1, Cell =< 9)
         )
     ).
+
+%% Helper: count non-zero cells (clues)
+count_clues(Board, Count) :-
+    flatten(Board, Cells),
+    exclude(=(0), Cells, Clues),
+    length(Clues, Count).
 
 :- end_tests(sudoku_solver).

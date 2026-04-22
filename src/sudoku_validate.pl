@@ -2,7 +2,9 @@
           [ validate_board/2,
             check_shape/2,
             check_range/2,
-            check_consistency/2
+            check_consistency/2,
+            is_cell_valid/3,
+            conflicts_in_board/3
           ]).
 
 % Valida un tablero 9x9 y devuelve un estado.
@@ -123,3 +125,80 @@ get_cols_range(Row, Start, End, Cols) :-
               nth1(I, Row, V)
             ),
             Cols).
+
+%% is_cell_valid(+Board, +Position, -Status)
+%  Valida el estado de una celda en el tablero.
+%  Position = Row-Col (1-indexed)
+%  Status = valid | invalid_row | invalid_col | invalid_block | empty
+%  Empty cells (value 0) siempre retornan 'empty'.
+%  Celdas no vacías retornan el primer conflicto encontrado (row, col, o block).
+is_cell_valid(Board, Row-Col, Status) :-
+    nth1(Row, Board, RowList),
+    nth1(Col, RowList, Value),
+    (   Value = 0
+    ->  Status = empty
+    ;   conflicts_in_board(Board, Row-Col, Conflicts),
+        (   memberchk(Row-_, Conflicts)
+        ->  Status = invalid_row
+        ;   memberchk(_-Col, Conflicts)
+        ->  Status = invalid_col
+        ;   in_same_block(Row, Col, Conflicts)
+        ->  Status = invalid_block
+        ;   Status = valid
+        )
+    ).
+
+%% in_same_block(+Row, +Col, +Conflicts)
+%  True si hay alguna posición en Conflicts que esté en el mismo bloque 3x3.
+in_same_block(Row, Col, Conflicts) :-
+    BlockRowStart is ((Row - 1) // 3) * 3 + 1,
+    BlockColStart is ((Col - 1) // 3) * 3 + 1,
+    BlockRowEnd is BlockRowStart + 2,
+    BlockColEnd is BlockColStart + 2,
+    member(R-C, Conflicts),
+    R >= BlockRowStart, R =< BlockRowEnd,
+    C >= BlockColStart, C =< BlockColEnd.
+
+%% conflicts_in_board(+Board, +Position, -Conflicts)
+%  Retorna la lista de posiciones (Row-Col) que conflictúan con la celda
+%  en Position. Un conflicto existe cuando otra celda (no vacía) tiene
+%  el mismo valor en la misma fila, columna, o bloque 3x3.
+conflicts_in_board(Board, Row-Col, Conflicts) :-
+    nth1(Row, Board, RowList),
+    nth1(Col, RowList, Value),
+    (   Value = 0
+    ->  Conflicts = []
+    ;   findall(R-C,
+                ( conflicting_cell(Board, Row, Col, Value, R, C),
+                  (R-C) \== (Row-Col)
+                ),
+                Conflicts0),
+        sort(Conflicts0, Conflicts)
+    ).
+
+%% conflicting_cell(+Board, +Row, +Col, +Value, -R, -C)
+%  True si la celda (R,C) tiene el mismo Value y está en la misma
+%  fila, columna, o bloque 3x3 que (Row,Col).
+conflicting_cell(Board, Row, Col, Value, R, C) :-
+    % Misma fila, diferente columna
+    member(Row, Board),
+    nth1(C, Row, Value),
+    C \== Col,
+    R = Row.
+conflicting_cell(Board, Row, Col, Value, R, C) :-
+    % Misma columna, diferente fila
+    nth1(R, Board, RowList),
+    nth1(Col, RowList, Value),
+    R \== Row,
+    C = Col.
+conflicting_cell(Board, Row, Col, Value, R, C) :-
+    % Mismo bloque 3x3, diferente posición
+    BlockRowStart is ((Row - 1) // 3) * 3 + 1,
+    BlockColStart is ((Col - 1) // 3) * 3 + 1,
+    BlockRowEnd is BlockRowStart + 2,
+    BlockColEnd is BlockColStart + 2,
+    between(BlockRowStart, BlockRowEnd, R),
+    between(BlockColStart, BlockColEnd, C),
+    (R-C) \== (Row-Col),
+    nth1(R, Board, BR),
+    nth1(C, BR, Value).

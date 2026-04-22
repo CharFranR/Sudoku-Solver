@@ -212,4 +212,144 @@ test(check_consistency_block_duplicate, [true(Reason \== ok)]) :-
         [0,0,0,0,0,0,0,0,0],
         [0,0,0,0,0,0,0,0,0]], Reason).
 
+%% === is_cell_valid/3 ===
+%% is_cell_valid(+Board, +Position, -Status)
+%% Position is Row-Col (1-indexed)
+%% Status = valid | invalid_row | invalid_col | invalid_block | empty
+
+%% Empty cell (value 0) always returns empty
+test(is_cell_valid_empty_cell) :-
+    Board = [[0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0]],
+    is_cell_valid(Board, 1-1, empty).
+
+%% Valid cell with no conflicts
+test(is_cell_valid_valid) :-
+    Board = [[5,3,0,0,7,0,0,0,0],
+             [6,0,0,1,9,5,0,0,0],
+             [0,9,8,0,0,0,0,6,0],
+             [8,0,0,0,6,0,0,0,3],
+             [4,0,0,8,0,3,0,0,1],
+             [7,0,0,0,2,0,0,0,6],
+             [0,6,0,0,0,0,2,8,0],
+             [0,0,0,4,1,9,0,0,5],
+             [0,0,0,0,8,0,0,7,9]],
+    is_cell_valid(Board, 1-1, valid).
+
+%% Invalid due to duplicate in same row
+test(is_cell_valid_invalid_row) :-
+    Board = [[5,5,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0]],
+    is_cell_valid(Board, 1-2, invalid_row).
+
+%% Invalid due to duplicate in same column
+test(is_cell_valid_invalid_col) :-
+    Board = [[5,0,0,0,0,0,0,0,0],
+             [5,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0]],
+    is_cell_valid(Board, 2-1, invalid_col).
+
+%% Invalid due to duplicate in same 3x3 block
+test(is_cell_valid_invalid_block) :-
+    Board = [[5,0,0,0,0,0,0,0,0],
+             [0,5,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0]],
+    is_cell_valid(Board, 2-2, invalid_block).
+
+%% === conflicts_in_board/3 ===
+%% conflicts_in_board(+Board, +Position, -Conflicts)
+%% Returns list of conflicting cell positions (Row-Col) for a given cell
+
+test(conflicts_in_board_row_conflict) :-
+    Board = [[5,5,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0]],
+    conflicts_in_board(Board, 1-2, Conflicts),
+    Conflicts = [1-1].
+
+test(conflicts_in_board_col_conflict) :-
+    Board = [[5,0,0,0,0,0,0,0,0],
+             [5,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0]],
+    conflicts_in_board(Board, 2-1, Conflicts),
+    Conflicts = [1-1].
+
+test(conflicts_in_board_block_conflict) :-
+    Board = [[5,0,0,0,0,0,0,0,0],
+             [0,5,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0]],
+    conflicts_in_board(Board, 2-2, Conflicts),
+    Conflicts = [1-1].
+
+test(conflicts_in_board_no_conflicts) :-
+    Board = [[5,3,0,0,7,0,0,0,0],
+             [6,0,0,1,9,5,0,0,0],
+             [0,9,8,0,0,0,0,6,0],
+             [8,0,0,0,6,0,0,0,3],
+             [4,0,0,8,0,3,0,0,1],
+             [7,0,0,0,2,0,0,0,6],
+             [0,6,0,0,0,0,2,8,0],
+             [0,0,0,4,1,9,0,0,5],
+             [0,0,0,0,8,0,0,7,9]],
+    conflicts_in_board(Board, 1-3, Conflicts),
+    Conflicts = [].
+
+test(conflicts_in_board_multiple_conflicts) :-
+    Board = [[5,5,0,0,0,0,0,0,0],
+             [5,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0],
+             [0,0,0,0,0,0,0,0,0]],
+    conflicts_in_board(Board, 1-1, Conflicts),
+    sort(Conflicts, Sorted),
+    Sorted = [1-2, 2-1].
+
 :- end_tests(sudoku_validate).
