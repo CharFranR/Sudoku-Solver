@@ -594,23 +594,59 @@ format_elapsed_time(Seconds, TimeStr) :-
     atomic_list_concat([MinStr, SecStr], ':', TimeStr).
 
 %% find_mistakes(+RawBoard, +Solution, +InitialSnapshot, -Mistakes)
-% Encuentra errores en la entrada del usuario comparando RawBoard contra Solution e InitialSnapshot.
-% Tipos de errores:
-%   mistake(invalid_char, Row, Col) - el caracter no es un número
-%   mistake(invalid_number, Row, Col) - el número no está en rango 1-9
-%   mistake(wrong_number, Row, Col, N) - el número es válido pero incorrecto
-%   no_input - no se ingresó ningún valor nuevo
+% Encuentra errores comparando el tablero del usuario contra la solución.
 find_mistakes(RawBoard, Solution, InitialSnapshot, Mistakes) :-
-    % Verificar si hay algún input nuevo EN CELDSAS QUE ESTABAN VACÍAS
-    find_new_inputs(RawBoard, InitialSnapshot, HasNewInput),
-    (   HasNewInput == no
-    ->  Mistakes = [no_input]
-    ;   find_mistakes_rec(RawBoard, Solution, InitialSnapshot, 1, 1, [], RawMistakes),
-        (   RawMistakes = []
-        ->  Mistakes = []  % Todo correcto
-        ;   maplist(mistake_to_string, RawMistakes, Mistakes)
+    find_mistakes_rec(RawBoard, Solution, InitialSnapshot, 1, 1, [], RawMistakes),
+    (   RawMistakes = []
+    ->  % Verificar si hubo algún ingreso
+        (   check_any_input(RawBoard, InitialSnapshot)
+        ->  Mistakes = []
+        ;   Mistakes = [no_input]
         )
+    ;   Mistakes = RawMistakes
     ).
+
+check_any_input([], []).
+check_any_input([R1|Rs], [S1|Ss]) :-
+    (   find_input_in_row(R1, S1)
+    ->  true
+    ;   check_any_input(Rs, Ss)
+    ).
+
+find_input_in_row([], []).
+find_input_in_row([V|Vs], [S|Ss]) :-
+    (   V \= S, V \= '', V \= '0', V \= 0
+    ->  true
+    ;   find_input_in_row(Vs, Ss)
+    ).
+
+find_mistakes_rec([], [], _Initial, _Row, _Col, Acc, Acc) :- !.
+find_mistakes_rec([RowB|RestB], [RowS|RestS], Initial, Row, 1, Acc, Mistakes) :- !,
+    find_mistakes_row(RowB, RowS, Initial, Row, 1, Acc, Acc2),
+    NextRow is Row + 1,
+    find_mistakes_rec(RestB, RestS, Initial, NextRow, 1, Acc2, Mistakes).
+find_mistakes_rec([_|RestB], [_|RestS], Initial, Row, Col, Acc, Mistakes) :-
+    NextCol is Col + 1,
+    find_mistakes_rec(RestB, RestS, Initial, Row, NextCol, Acc, Mistakes).
+
+find_mistakes_row([], [], _Initial, _Row, _Col, Acc, Acc) :- !.
+find_mistakes_row([RawVal|RestU], [SolVal|RestS], Initial, Row, Col, Acc, Mistakes) :-
+    nth1(Row, Initial, InitialRow),
+    nth1(Col, InitialRow, InitialVal),
+    (   InitialVal > 0
+    ->  Acc2 = Acc % Es pista, ignorar
+    ;   (   (RawVal = '' ; RawVal = '0' ; RawVal = 0)
+        ->  Acc2 = Acc % Vacío, no es error
+        ;   % Convertir a número para comparar
+            ( (integer(RawVal) -> number_string(RawVal, RawStr) ; RawStr = RawVal),
+              catch(atom_number(RawStr, N), _, fail), 
+              N =:= SolVal )
+        ->  Acc2 = Acc % Correcto
+        ;   Acc2 = [(Row, Col)|Acc] % Error
+        )
+    ),
+    NextCol is Col + 1,
+    find_mistakes_row(RestU, RestS, Initial, Row, NextCol, Acc2, Mistakes).
 
 %% find_new_inputs(+RawBoard, +InitialSnapshot, -HasNewInput)
 % Verifica si el usuario agregó algún valor nuevo en celdas que estaban vacías.
@@ -653,70 +689,18 @@ find_new_inputs_row([RawVal|RestU], [InitVal|RestS], Row, Col, HasNewInput) :-
         )
     ).
 
-%% find_mistakes_rec(+RawBoard, +Solution, +InitialSnapshot, +Row, +Col, +Acc, -Mistakes)
-find_mistakes_rec([], [], _Initial, _Row, _Col, Acc, Acc) :- !.
-find_mistakes_rec([RowB|RestB], [RowS|RestS], Initial, Row, 1, Acc, Mistakes) :- !,
-    find_mistakes_row(RowB, RowS, Initial, Row, 1, Acc, Acc2),
-    NextRow is Row + 1,
-    find_mistakes_rec(RestB, RestS, Initial, NextRow, 1, Acc2, Mistakes).
-find_mistakes_rec([_|RestB], [_|RestS], Initial, Row, Col, Acc, Mistakes) :-
-    NextCol is Col + 1,
-    find_mistakes_rec(RestB, RestS, Initial, Row, NextCol, Acc, Mistakes).
-
-find_mistakes_row([], [], _Initial, _Row, _Col, Acc, Acc) :- !.
-find_mistakes_row([RawVal|RestU], [SolVal|RestS], Initial, Row, Col, Acc, Mistakes) :-
-    % Obtener valor inicial de esta celda
-    nth1(Row, Initial, InitialRow),
-    nth1(Col, InitialRow, InitialVal),
-    % Solo procesar si la celda estaba inicialmente vacía (era 0)
-    (   InitialVal > 0
-    ->  % Celda era pistas - ignorar lo que el usuario puso
-        Acc2 = Acc
-    ;   % Celda estaba vacía - analizar lo que puso el usuario
-        (   RawVal = '' ; RawVal = '0' ; RawVal = 0
-        ->  % Celda vacía - no hay error
-            Acc2 = Acc
-        ;   % Celda tiene contenido - analizar
-            % Convertir a átomo si es necesario para atom_number
-            (   integer(RawVal)
-            ->  number_string(RawVal, RawStr)
-            ;   RawStr = RawVal
-            ),
-            (   catch(atom_number(RawStr, N), _, fail)
-            ->  % Es numérico
-                (   N < 1 ; N > 9
-                ->  % Número fuera de rango
-                    Acc2 = [mistake(invalid_number, Row, Col)|Acc]
-                ;   N \= SolVal
-                    ->  % Número válido pero incorrecto
-                        Acc2 = [mistake(wrong_number, Row, Col, N)|Acc]
-                    ;   % Número correcto
-                        Acc2 = Acc
-                )
-            ;   % No es numérico (letra, símbolo, etc.)
-                Acc2 = [mistake(invalid_char, Row, Col)|Acc]
-            )
-        )
-    ),
-    NextCol is Col + 1,
-    find_mistakes_row(RestU, RestS, Initial, Row, NextCol, Acc2, Mistakes).
-
 %% mistake_to_string(+Mistake, -ErrorString)
 % Convierte una estructura de error en el mensaje de error formateado.
-mistake_to_string(no_input, "No se ha ingresaado ningun valor, que triste.") :- !.
-mistake_to_string(mistake(invalid_char, Row, Col), ErrorStr) :-
-    format(atom(ErrorStr), 'Fila ~d, Columna ~d: El caracter ingresaado no es un numero', [Row, Col]).
-mistake_to_string(mistake(invalid_number, Row, Col), ErrorStr) :-
-    format(atom(ErrorStr), 'Fila ~d, Columna ~d: El numero ingresaado no es valido', [Row, Col]).
-mistake_to_string(mistake(wrong_number, Row, Col, N), ErrorStr) :-
-    format(atom(ErrorStr), 'Fila ~d, Columna ~d: El numero ~d es incorrecto', [Row, Col, N]).
+mistake_to_string(no_input, 'Sin ingresos realizados').
+mistake_to_string((Row, Col), ErrorStr) :-
+    format(atom(ErrorStr), 'Fila ~d, Columna ~d', [Row, Col]).
 
 %% show_comprobar_result(+Dialog, +TimeStr, +ScorePercent, +Mistakes, +SolverStatus, +Solution)
 % Muestra el resultado del check en un popup personalizado con tamaño variable.
 show_comprobar_result(Dialog, TimeStr, ScorePercent, Mistakes, SolverStatus, Solution) :-
     ( SolverStatus = solved ; SolverStatus = multiple_solutions ),
     !,
-    % Aplicar la solución al board result
+    % Aplicar la solución al board result (SÍEMPRE, aunque no haya ingresado nada)
     gui_apply_solution(Dialog, _GivenMask, Solution),
     % Formatear mensaje principal
     format(atom(MainMsg), 'Tiempo: ~w~nRendimiento: ~w%', [TimeStr, ScorePercent]),
@@ -725,10 +709,12 @@ show_comprobar_result(Dialog, TimeStr, ScorePercent, Mistakes, SolverStatus, Sol
     ->  FinalMsg = MainMsg
     ;   Mistakes = [no_input]
     ->  % Caso especial: no se ingreng ningun valor
-        concat(MainMsg, '\n\nNo se ha ingresaado ningun valor, que triste.', FinalMsg)
-    ;   length(Mistakes, NumErrors),
+        concat(MainMsg, '\n\nSin ingresos realizados', FinalMsg)
+    ;   % Convertir los tuples (Row, Col) a strings primero
+        maplist(mistake_to_string, Mistakes, StringMistakes),
+        length(StringMistakes, NumErrors),
         format(atom(ErrMsg), '~n~nErrores (~d):~n', [NumErrors]),
-        atomic_list_concat(Mistakes, '\n', AllErrors),
+        atomic_list_concat(StringMistakes, '\n', AllErrors),
         concat(ErrMsg, AllErrors, FullErrMsg),
         concat(MainMsg, FullErrMsg, FinalMsg)
     ),
