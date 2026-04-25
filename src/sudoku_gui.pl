@@ -17,14 +17,13 @@
 :- use_module(sudoku_validate).
 
 :- dynamic(practice_state/3).
+:- dynamic(input_error/2).
 
-% Windows XPCE Font Rendering Fix
 :- initialization(fix_pce_fonts).
 fix_pce_fonts :-
     (   current_prolog_flag(windows, true)
-    ->  send(@pce, send_method, send_method(alias_font, vector(name, font), 
-            message(@receiver, font, @arg1, @arg2))), % placeholder
-        % We will just use the correct font object on Windows during creation or ignore missing alias
+    ->  send(@pce, send_method, send_method(alias_font, vector(name, font),
+            message(@receiver, font, @arg1, @arg2))),
         true
     ;   true
     ).
@@ -40,13 +39,13 @@ open_gui :-
     new(Dialog, dialog('Sudoku Solver')),
     send(Dialog, size, size(780, 500)),
 
-    % === Grilla INPUT ===
+    % INPUT GRID
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
                   create_cell(Dialog, input, Row, Col, 0))),
     draw_block_dividers(Dialog, 10, 40, 38, 0),
 
-    % === Grilla RESULT ===
+    % RESULT GRID
     forall(between(1, 9, Row),
            forall(between(1, 9, Col),
                   create_cell(Dialog, result, Row, Col, 400))),
@@ -55,31 +54,35 @@ open_gui :-
     % Headers
     new(T1, text('Ingresar datos')),
     send(T1, font, font(helvetica, bold, 14)),
+    send(T1, name, 'IngresarLabel'),
     send(Dialog, display, T1, point(10, 10)),
 
     new(T2, text('Resultados')),
     send(T2, font, font(helvetica, bold, 14)),
+    send(T2, name, 'ResultadosLabel'),
     send(Dialog, display, T2, point(410, 10)),
 
-    % === PANEL DE BOTONES ===
+    % BUTTON PANEL
     Row1Y = 410,
 
-    % --- Izquierda: Ejercicios ---
+    % Exercises
     send(Dialog, display, new(LblEx, text('Ejercicios:')), point(10, Row1Y)),
     send(LblEx, font, font(helvetica, bold, 12)),
+    send(LblEx, name, 'EjerciciosLabel'),
     forall(between(1, 5, N),
            (  XX is 100 + (N - 1) * 55,
               send(Dialog, display, button(N, message(@prolog, load_exercise, Dialog, N)), point(XX, Row1Y))
            )),
 
-    % --- Derecha: Nuevo Puzzle ---
+    % New Puzzle
     send(Dialog, display, new(LblPu, text('Nuevo Puzzle:')), point(420, Row1Y)),
     send(LblPu, font, font(helvetica, bold, 12)),
+    send(LblPu, name, 'NuevoPuzzleLabel'),
     send(Dialog, display, button('Easy',   message(@prolog, on_new_puzzle_click, Dialog, easy)),   point(540, Row1Y)),
     send(Dialog, display, button('Medium', message(@prolog, on_new_puzzle_click, Dialog, medium)), point(620, Row1Y)),
     send(Dialog, display, button('Hard',   message(@prolog, on_new_puzzle_click, Dialog, hard)),   point(715, Row1Y)),
 
-    % --- Fila inferior: Status a la izquierda, botones a la derecha ---
+    % Bottom row
     Row2Y = 450,
     new(StatusLabel, text_item(status_label, 'Listo')),
     send(StatusLabel, font, font(helvetica, normal, 10)),
@@ -95,7 +98,7 @@ open_gui :-
     send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(620, Row2Y)),
     send(Dialog, display, button('Salir', message(@prolog, on_exit_click, Dialog)), point(680, Row2Y)),
 
-    % === Practice Mode Controls (hidden initially) ===
+    % Practice Controls (hidden)
     send(Dialog, display, new(PracticeTimer, text_item(practice_timer, '00:00')), point(480, Row2Y)),
     send(PracticeTimer, label, ''),
     send(PracticeTimer, font, font(helvetica, monospaced, 12)),
@@ -106,10 +109,9 @@ open_gui :-
     send(Dialog, display, button('Comprobar', message(@prolog, on_comprobar_click, Dialog)), point(545, Row2Y)),
     send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(615, Row2Y)),
 
-    % Ocultar botones de practice inicialmente
     get(Dialog, member, practice_timer, PracticeTimer),
     send(PracticeTimer, displayed, @off),
-    get(Dialog, member, practice_timer, PracticeTimer),  % noqa: F841
+    get(Dialog, member, practice_timer, PracticeTimer),
     (   get(Dialog, member, 'Comprobar', BtnComprobar)
     ->  send(BtnComprobar, displayed, @off)
     ;   true
@@ -121,7 +123,6 @@ open_gui :-
 
     send(Dialog, open, point(50, 50)).
 
-%% create_cell(+Dialog, +Prefix, +Row, +Col, +OffsetX)
 create_cell(Dialog, Prefix, Row, Col, OffsetX) :-
     cell_name(Prefix, Row, Col, NameAtom),
     new(CellItem, text_item(NameAtom, '')),
@@ -141,7 +142,6 @@ get_row_y(Row, Y) :-
 get_col_x(Col, X) :-
     X is (Col - 1) * 38 + 10.
 
-%% draw_block_dividers(+Dialog, +OriginX, +OriginY, +Step, +OffsetX)
 draw_block_dividers(Dialog, OX, OY, Step, OffX) :-
     VX1 is OX + 3 * Step - 2 + OffX,
     VX2 is OX + 6 * Step - 2 + OffX,
@@ -160,7 +160,6 @@ draw_line(Parent, X1, Y1, X2, Y2) :-
     send(L, colour, colour(black)),
     send(Parent, display, L).
 
-% Limpia la grilla result (establece todas las celdas a vacío).
 clear_result_grid(Dialog) :-
     Prefix = result,
     forall(between(1, 9, Row),
@@ -169,7 +168,6 @@ clear_result_grid(Dialog) :-
                     send(CellItem, selection, '')
                   ))).
 
-% Limpia la grilla input (establece todas las celdas a vacío).
 clear_input_grid(Dialog) :-
     Prefix = input,
     forall(between(1, 9, Row),
@@ -178,22 +176,18 @@ clear_input_grid(Dialog) :-
                     send(CellItem, selection, '')
                   ))).
 
-% Actualiza el mensaje de estado en la barra interior.
 update_status(Dialog, Message) :-
     get(Dialog, member, status_label, StatusLabel),
     send(StatusLabel, selection, Message).
 
-% Handler del botón Limpiar Todo: limpia ambas grillas (input y result).
 on_clear_click(Dialog) :-
     clear_input_grid(Dialog),
     clear_result_grid(Dialog),
     update_status(Dialog, '').
 
-% Handler del botón Salir
 on_exit_click(Dialog) :-
     send(Dialog, destroy).
 
-% Handler del botón Resolver: lee, resuelve y actualiza la grilla.
 on_resolver_click(Dialog) :-
     clear_result_grid(Dialog),
     catch(
@@ -207,7 +201,6 @@ on_resolver_click(Dialog) :-
         )
     ).
 
-% Muestra el mensaje correspondiente y aplica la solución si corresponde.
 handle_status(Dialog, solved, Solution, GivenMask) :-
     !,
     update_status(Dialog, '¡Sudoku resuelto! Completando celdas vacías.'),
@@ -216,7 +209,6 @@ handle_status(Dialog, already_solved, _Solution, _GivenMask) :-
     !,
     update_status(Dialog, 'El puzzle ya está resuelto.').
 handle_status(Dialog, no_solution, _Solution, _GivenMask) :-
-    % No existe solución consistente.
     !,
     update_status(Dialog, 'Sin solución: el puzzle no tiene solución válida.').
 handle_status(Dialog, multiple_solutions, Solution, GivenMask) :-
@@ -228,13 +220,12 @@ handle_status(Dialog, invalid_input(Reason), _Solution, _GivenMask) :-
     format(atom(Msg), 'Input inválido: ~w', [Reason]),
     update_status(Dialog, Msg).
 handle_status(Dialog, inconsistent(Reason), _Solution, _GivenMask) :-
-    % El tablero viola restricciones (duplicados iniciales).
     !,
     format(atom(Msg), 'Puzzle inconsistente: ~w', [Reason]),
     update_status(Dialog, Msg).
 
-% Lee la grilla XPCE y produce el Board (0..9) y una máscara de pistas.
 gui_read_board(Dialog, Board, GivenMask) :-
+    retractall(input_error(_,_)),
     Prefix = input,
     findall(RowCells,
             ( between(1, 9, Row),
@@ -245,10 +236,15 @@ gui_read_board(Dialog, Board, GivenMask) :-
             ( between(1, 9, Row),
               read_row(Dialog, Prefix, Row, _RowCells, RowMask)
             ),
-            GivenMask).
+            GivenMask),
+    (   findall(Err, input_error(Dialog, Err), Errors),
+        Errors \= []
+    ->  Errors = [FirstErr|_],
+        show_error_dialog(Dialog, FirstErr),
+        fail
+    ;   true
+    ).
 
-% Lee la grilla XPCE y produce el RawBoard con el texto exacto que el usuario ingresó.
-% RawBoard contiene los átomos/strings sin conversión a números (excepto 0 para vacío).
 gui_read_board_raw(Dialog, RawBoard) :-
     Prefix = input,
     findall(RowCells,
@@ -264,8 +260,6 @@ read_row_raw(Dialog, Prefix, Row, RowCells) :-
             ),
             RowCells).
 
-% Lee la celda sin convertir a número - devuelve el texto exacto del usuario.
-% cell puede ser: '' (vacío), '0', un átomo con número (ej '5'), o un átomo no-numérico (ej 'a')
 read_cell_raw(Dialog, Prefix, Row, Col, Cell) :-
     cell_item(Dialog, Prefix, Row, Col, CellItem),
     get(CellItem, selection, Sel0),
@@ -312,11 +306,12 @@ read_cell(Dialog, Prefix, Row, Col, Cell, Clue) :-
         N >= 1, N =< 9
     ->  Cell = N,
         Clue = true
-    ;   Cell = 0,
+    ;   format(atom(ErrMsg), 'Celda (~d,~d): "~w" invalido. Ingrese valores del 1-9.', [Row, Col, Sel]),
+        assertz(input_error(Dialog, ErrMsg)),
+        Cell = 0,
         Clue = false
     ).
 
-% Aplica la solución a la grilla result.
 gui_apply_solution(Dialog, _GivenMask, Solution) :-
     Prefix = result,
     forall(between(1, 9, Row),
@@ -328,18 +323,29 @@ gui_apply_solution(Dialog, _GivenMask, Solution) :-
                     send(CellItem, selection, S)
                   ))).
 
-% === Handler para cargar ejercicios predefinidos ===
 load_exercise(Dialog, N) :-
     clear_input_grid(Dialog),
     clear_result_grid(Dialog),
     update_status(Dialog, ''),
-    % Obtiene el tablero del ejercicio N.
     exercise(N, Board),
-    forall( ( nth1(Row, Board, RowList),
+    forall( ( nth1(_, Board, RowList),
             nth1(Col, RowList, Val),
             Val > 0
           ),
-          ( cell_item(Dialog, input, Row, Col, CellItem),
+          ( cell_item(Dialog, input, _, Col, CellItem),
+            number_string(Val, S),
+            send(CellItem, selection, S)
+          )).
+
+on_new_puzzle_click(Dialog, Difficulty) :-
+    generate_puzzle(Difficulty, Puzzle),
+    clear_input_grid(Dialog),
+    clear_result_grid(Dialog),
+    forall( ( nth1(_, Puzzle, RowList),
+            nth1(Col, RowList, Val),
+            Val > 0
+          ),
+          ( cell_item(Dialog, input, _, Col, CellItem),
             number_string(Val, S),
             send(CellItem, selection, S)
           )).
@@ -360,9 +366,6 @@ on_new_puzzle_click(Dialog, Difficulty) :-
 
 % === Handlers para Save y Open ===
 
-%% ask_file_path(+Dialog, +Mode, -PathString)
-%  Abre un dialogo XPCE para ingresar un path de archivo.
-%  Mode = save | open. Devuelve PathString o falla si el usuario cancela.
 ask_file_path(Dialog, Mode, PathString) :-
     (Mode == save -> Title = 'Guardar tablero' ; Title = 'Abrir tablero'),
     new(D, dialog(Title)),
@@ -422,13 +425,6 @@ update_status(Dialog, Message, Colour) :-
     send(StatusLabel, selection, Message),
     send(StatusLabel, colour, Colour).
 
-% ============================================================
-% Practice Mode Handlers
-% ============================================================
-
-%% on_practice_click(+Dialog)
-% Maneja el click en botón "Practicar".
-% Verifica que haya al menos 17 pistas antes de iniciar.
 on_practice_click(Dialog) :-
     gui_read_board(Dialog, Board, _GivenMask),
     count_clues(Board, ClueCount),
@@ -437,33 +433,19 @@ on_practice_click(Dialog) :-
     ;   start_practice_mode(Dialog, Board)
     ).
 
-%% count_clues(+Board, -Count)
-% Cuenta la cantidad de pistas (celdas no vacías) en el tablero.
 count_clues(Board, Count) :-
     flatten(Board, Cells),
     exclude(==(0), Cells, Clues),
     length(Clues, Count).
 
-%% start_practice_mode(+Dialog, +Board)
-% Inicia el modo practice: bloquear celdas iniciales,
-% guardar snapshot, mostrar controles de practice.
-% Ahora con timer simplificado - solo guarda timestamp, sin UI polling.
 start_practice_mode(Dialog, Board) :-
-    % Guardar snapshot inicial y timestamp de inicio
     duplicate_term(Board, InitialSnapshot),
     get_time(StartTime),
     asserta(practice_state(practice, InitialSnapshot, StartTime)),
-
-    % Bloquear celdas iniciales (given)
     lock_given_cells(Dialog, Board),
-
-    % Mostrar controles de practice
     show_practice_controls(Dialog),
-
     update_status(Dialog, 'Modo Practice: Completa el Sudoku y presiona Comprobar').
 
-%% lock_given_cells(+Dialog, +Board)
-% Bloquea las celdas que tienen pistas (no son editables).
 lock_given_cells(Dialog, Board) :-
     forall( ( between(1, 9, Row),
              between(1, 9, Col),
@@ -475,10 +457,7 @@ lock_given_cells(Dialog, Board) :-
              send(CellItem, editable, @off)
            )).
 
-%% show_practice_controls(+Dialog)
-% Oculta controles normales y muestra los de practice.
 show_practice_controls(Dialog) :-
-    % Ocultar botones normales
     (   get(Dialog, member, 'Resolver', BtnResolver)
     ->  send(BtnResolver, displayed, @off)
     ;   true
@@ -512,12 +491,11 @@ show_practice_controls(Dialog) :-
     ;   true
     ),
 
-    % Ocultar labels de ejercicios
-    (   get(Dialog, member, 'Ejercicios', LblEjercicios)
+    (   get(Dialog, member, 'EjerciciosLabel', LblEjercicios)
     ->  send(LblEjercicios, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, 'Nuevo Puzzle', LblNuevo)
+    (   get(Dialog, member, 'NuevoPuzzleLabel', LblNuevo)
     ->  send(LblNuevo, displayed, @off)
     ;   true
     ),
@@ -530,10 +508,8 @@ show_practice_controls(Dialog) :-
     ;   true
     ),
 
-    % Ocultar botones de ejercicios
     forall(between(1, 5, N), hide_exercise_button(Dialog, N)),
 
-    % Mostrar controles de practice (sin timer UI - solo background timestamp)
     (   get(Dialog, member, 'Comprobar', BtnComprobar)
     ->  send(BtnComprobar, displayed, @on)
     ;   true
@@ -787,6 +763,7 @@ calculate_score(UserBoard, Solution, InitialSnapshot, Percent) :-
     % Evitar división por cero
     (   TotalEmpty > 0
     ->  Percent is round(CorrectCount * 100 / TotalEmpty)
+    ;   Percent = 0  % Tablero sin celdas vacías = 0% de esfuerzo
     ).
 
 %% on_return_click(+Dialog)
@@ -861,19 +838,19 @@ hide_practice_controls(Dialog) :-
     ),
 
     % Mostrar labels
-    (   get(Dialog, member, 'Ejercicios', LblEjercicios)
+    (   get(Dialog, member, 'EjerciciosLabel', LblEjercicios)
     ->  send(LblEjercicios, displayed, @on)
     ;   true
     ),
-    (   get(Dialog, member, 'Nuevo Puzzle', LblNuevo)
+    (   get(Dialog, member, 'NuevoPuzzleLabel', LblNuevo)
     ->  send(LblNuevo, displayed, @on)
     ;   true
     ),
-    (   get(Dialog, member, 'Ingresar datos', LblInput)
+    (   get(Dialog, member, 'IngresarLabel', LblInput)
     ->  send(LblInput, displayed, @on)
     ;   true
     ),
-    (   get(Dialog, member, 'Resultados', LblResult)
+    (   get(Dialog, member, 'ResultadosLabel', LblResult)
     ->  send(LblResult, displayed, @on)
     ;   true
     ),
