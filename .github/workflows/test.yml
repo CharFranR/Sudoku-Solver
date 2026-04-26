@@ -26,8 +26,8 @@ jobs:
       - name: Update package index
         run: sudo apt-get update
 
-      - name: Install SWI-Prolog
-        run: sudo apt-get install -y swi-prolog
+      - name: Install SWI-Prolog and XPCE
+        run: sudo apt-get install -y swi-prolog swi-prolog-x
 
       - name: Run test suite
         run: swipl -s src/run_tests.pl -g run_all_tests -t halt
