@@ -3,6 +3,7 @@
 %% Runs all plunit test suites
 
 :- use_module(library(plunit)).
+:- use_module(library(pce)).
 :- use_module(sudoku_solver).
 :- use_module(sudoku_gui).
 
@@ -194,33 +195,153 @@ test(score_partial) :-
 
 :- end_tests(sudoku_gui_score).
 
-%% GUI Load/Generate Tests - ensure load_exercise and on_new_puzzle_click work
+%% Helpers for GUI handler regression tests
+cell_name(Prefix, Row, Col, NameAtom) :-
+    atomic_list_concat([Prefix, '_cell_', Row, '_', Col], NameAtom).
+
+create_test_dialog(Dialog) :-
+    new(Dialog, dialog('GUI Handler Test')),
+    forall(between(1, 9, Row),
+           forall(between(1, 9, Col),
+                  ( cell_name(input, Row, Col, InName),
+                    new(InCell, text_item(InName, '')),
+                    send(InCell, label, ''),
+                    send(Dialog, append, InCell),
+                    cell_name(result, Row, Col, OutName),
+                    new(OutCell, text_item(OutName, '')),
+                    send(OutCell, label, ''),
+                    send(Dialog, append, OutCell)
+                  ))),
+    new(StatusLabel, text_item(status_label, '')),
+    send(StatusLabel, label, ''),
+    send(StatusLabel, editable, @off),
+    send(Dialog, append, StatusLabel).
+
+create_practice_controls_dialog(Dialog) :-
+    create_test_dialog(Dialog),
+    send(Dialog, display, button('Resolver', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, button('Limpiar Todo', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, button('Practicar', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, button('Save', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, button('Open', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, button('Easy', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, button('Medium', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, button('Hard', message(@prolog, true)), point(10, 10)),
+    forall(between(1, 5, N),
+           send(Dialog, display, button(N, message(@prolog, true)), point(10, 10))),
+    send(Dialog, display, new(LblEx, text('Ejercicios:')), point(10, 10)),
+    send(LblEx, name, 'EjerciciosLabel'),
+    send(Dialog, display, new(LblNew, text('Nuevo Puzzle:')), point(10, 10)),
+    send(LblNew, name, 'NuevoPuzzleLabel'),
+    send(Dialog, display, new(LblInput, text('Custom input title')), point(10, 10)),
+    send(LblInput, name, 'IngresarLabel'),
+    send(Dialog, display, new(LblResult, text('Custom result title')), point(10, 10)),
+    send(LblResult, name, 'ResultadosLabel'),
+    send(Dialog, display, button('Comprobar', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, button('Volver', message(@prolog, true)), point(10, 10)),
+    send(Dialog, display, new(PracticeTimer, text_item(practice_timer, '00:00')), point(10, 10)),
+    send(PracticeTimer, displayed, @off).
+
+dialog_cell_value(Dialog, Prefix, Row, Col, Value) :-
+    cell_name(Prefix, Row, Col, NameAtom),
+    get(Dialog, member, NameAtom, CellItem),
+    get(CellItem, selection, Sel0),
+    (   Sel0 == @nil
+    ->  Value = 0
+    ;   Sel0 == ''
+    ->  Value = 0
+    ;   atom(Sel0)
+    ->  atom_number(Sel0, Value)
+    ;   string(Sel0)
+    ->  number_string(Value, Sel0)
+    ;   catch(get(Sel0, value, RawVal), _, RawVal = ''),
+        (   RawVal == ''
+        ->  Value = 0
+        ;   atom(RawVal)
+        ->  atom_number(RawVal, Value)
+        ;   number_string(Value, RawVal)
+        )
+    ).
+
+assert_grid_matches_board(Dialog, Prefix, Board) :-
+    forall((between(1, 9, Row), between(1, 9, Col)),
+           ( nth1(Row, Board, BoardRow),
+             nth1(Col, BoardRow, Expected),
+             dialog_cell_value(Dialog, Prefix, Row, Col, Actual),
+             Actual =:= Expected
+           )).
+
+assert_grid_empty(Dialog, Prefix) :-
+    forall((between(1, 9, Row), between(1, 9, Col)),
+           ( dialog_cell_value(Dialog, Prefix, Row, Col, Value),
+             Value =:= 0
+           )).
+
+dialog_board(Dialog, Prefix, Board) :-
+    findall(RowCells,
+            ( between(1, 9, Row),
+              findall(Cell,
+                      ( between(1, 9, Col),
+                        dialog_cell_value(Dialog, Prefix, Row, Col, Cell)
+                      ),
+                      RowCells)
+            ),
+            Board).
+
+clue_count(Board, Count) :-
+    flatten(Board, Cells),
+    exclude(==(0), Cells, Clues),
+    length(Clues, Count).
+
+assert_displayed(Dialog, MemberName, Expected) :-
+    get(Dialog, member, MemberName, Item),
+    get(Item, displayed, Actual),
+    Actual == Expected.
+
+%% GUI Load/Generate Tests - directly exercise GUI handlers
 :- begin_tests(sudoku_gui_load).
 
-test(load_exercise_returns_valid_board) :-
-    % exercise/1 should return a valid 9x9 board with some clues
-    exercise(1, Board),
-    is_list(Board),
-    length(Board, 9),
-    forall(member(Row, Board),
-           (is_list(Row), length(Row, 9))),
-    % Board should have valid values 0-9
-    forall(member(Row, Board),
-           forall(member(Cell, Row),
-                  (integer(Cell), Cell >= 0, Cell =< 9))).
+test(load_exercise_handler_populates_input_grid,
+     [setup(create_test_dialog(Dialog)), cleanup(send(Dialog, destroy))]) :-
+    exercise(1, ExpectedBoard),
+    load_exercise(Dialog, 1),
+    assert_grid_matches_board(Dialog, input, ExpectedBoard),
+    assert_grid_empty(Dialog, result).
 
-test(generate_puzzle_returns_valid) :-
-    % generate_puzzle/2 should return a valid puzzle
-    generate_puzzle(easy, Puzzle),
-    is_list(Puzzle),
+test(on_new_puzzle_click_handler_generates_easy_puzzle,
+     [setup(create_test_dialog(Dialog)), cleanup(send(Dialog, destroy))]) :-
+    % Baseline: dirty result grid so we verify the handler clears it.
+    cell_name(result, 1, 1, ResultName),
+    get(Dialog, member, ResultName, ResultCell),
+    send(ResultCell, selection, '9'),
+
+    sudoku_gui:on_new_puzzle_click(Dialog, easy),
+
+    dialog_board(Dialog, input, Puzzle),
     length(Puzzle, 9),
     forall(member(Row, Puzzle),
            (is_list(Row), length(Row, 9))),
-    % Should have between 35-40 clues for easy
-    flatten(Puzzle, Cells),
-    exclude(==(0), Cells, Clues),
-    length(Clues, NumClues),
-    NumClues >= 35, NumClues =< 40.
+    forall(member(Row, Puzzle),
+           forall(member(Cell, Row), (integer(Cell), Cell >= 0, Cell =< 9))),
+    clue_count(Puzzle, NumClues),
+    NumClues >= 35, NumClues =< 40,
+    assert_grid_empty(Dialog, result).
+
+test(practice_controls_toggle_uses_named_labels,
+     [setup(create_practice_controls_dialog(Dialog)), cleanup(send(Dialog, destroy))]) :-
+    sudoku_gui:show_practice_controls(Dialog),
+    assert_displayed(Dialog, 'IngresarLabel', @off),
+    assert_displayed(Dialog, 'ResultadosLabel', @off),
+    assert_displayed(Dialog, 'Comprobar', @on),
+    assert_displayed(Dialog, 'Volver', @on),
+    assert_displayed(Dialog, practice_timer, @on),
+
+    sudoku_gui:hide_practice_controls(Dialog),
+    assert_displayed(Dialog, 'IngresarLabel', @on),
+    assert_displayed(Dialog, 'ResultadosLabel', @on),
+    assert_displayed(Dialog, 'Comprobar', @off),
+    assert_displayed(Dialog, 'Volver', @off),
+    assert_displayed(Dialog, practice_timer, @off).
 
 :- end_tests(sudoku_gui_load).
 run_all_tests :-

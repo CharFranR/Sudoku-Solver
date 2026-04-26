@@ -483,11 +483,11 @@ show_practice_controls(Dialog) :-
     ->  send(LblNuevo, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, 'Ingresar datos', LblInput)
+    (   get(Dialog, member, 'IngresarLabel', LblInput)
     ->  send(LblInput, displayed, @off)
     ;   true
     ),
-    (   get(Dialog, member, 'Resultados', LblResult)
+    (   get(Dialog, member, 'ResultadosLabel', LblResult)
     ->  send(LblResult, displayed, @off)
     ;   true
     ),
@@ -500,6 +500,10 @@ show_practice_controls(Dialog) :-
     ),
     (   get(Dialog, member, 'Volver', BtnVolver)
     ->  send(BtnVolver, displayed, @on)
+    ;   true
+    ),
+    (   get(Dialog, member, practice_timer, PracticeTimer)
+    ->  send(PracticeTimer, displayed, @on)
     ;   true
     ).
 
@@ -784,6 +788,10 @@ hide_practice_controls(Dialog) :-
     ),
     (   get(Dialog, member, 'Volver', BtnVolver)
     ->  send(BtnVolver, displayed, @off)
+    ;   true
+    ),
+    (   get(Dialog, member, practice_timer, PracticeTimer)
+    ->  send(PracticeTimer, displayed, @off)
     ;   true
     ),
 
