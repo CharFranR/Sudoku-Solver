@@ -193,7 +193,35 @@ test(score_partial) :-
 
 :- end_tests(sudoku_gui_score).
 
-%% Load all test modules and run tests
+%% GUI Load/Generate Tests - ensure load_exercise and on_new_puzzle_click work
+:- begin_tests(sudoku_gui_load).
+
+test(load_exercise_returns_valid_board) :-
+    % exercise/1 should return a valid 9x9 board with some clues
+    exercise(1, Board),
+    is_list(Board),
+    length(Board, 9),
+    forall(member(Row, Board),
+           (is_list(Row), length(Row, 9))),
+    % Board should have valid values 0-9
+    forall(member(Row, Board),
+           forall(member(Cell, Row),
+                  (integer(Cell), Cell >= 0, Cell =< 9))).
+
+test(generate_puzzle_returns_valid) :-
+    % generate_puzzle/2 should return a valid puzzle
+    generate_puzzle(easy, Puzzle),
+    is_list(Puzzle),
+    length(Puzzle, 9),
+    forall(member(Row, Puzzle),
+           (is_list(Row), length(Row, 9))),
+    % Should have between 35-40 clues for easy
+    flatten(Puzzle, Cells),
+    exclude(==(0), Cells, Clues),
+    length(Clues, NumClues),
+    NumClues >= 35, NumClues =< 40.
+
+:- end_tests(sudoku_gui_load).
 run_all_tests :-
     format('~n~n=== Running Sudoku Solver Test Suite ===~n~n', []),
     
@@ -219,7 +247,7 @@ run_all_tests :-
     format('~nRunning tests...~n~n', []),
     
     %% Run all test suites
-    run_tests([sudoku_validate, sudoku_solver, sudoku_persistence, sudoku_gui_practice, sudoku_gui_score]).
+    run_tests([sudoku_validate, sudoku_solver, sudoku_persistence, sudoku_gui_practice, sudoku_gui_score, sudoku_gui_load]).
 
 %% Main entry point
 main :-

@@ -328,29 +328,15 @@ load_exercise(Dialog, N) :-
     clear_result_grid(Dialog),
     update_status(Dialog, ''),
     exercise(N, Board),
-    forall( ( nth1(_, Board, RowList),
+    forall( ( nth1(Row, Board, RowList),
             nth1(Col, RowList, Val),
             Val > 0
           ),
-          ( cell_item(Dialog, input, _, Col, CellItem),
+          ( cell_item(Dialog, input, Row, Col, CellItem),
             number_string(Val, S),
             send(CellItem, selection, S)
           )).
 
-on_new_puzzle_click(Dialog, Difficulty) :-
-    generate_puzzle(Difficulty, Puzzle),
-    clear_input_grid(Dialog),
-    clear_result_grid(Dialog),
-    forall( ( nth1(_, Puzzle, RowList),
-            nth1(Col, RowList, Val),
-            Val > 0
-          ),
-          ( cell_item(Dialog, input, _, Col, CellItem),
-            number_string(Val, S),
-            send(CellItem, selection, S)
-          )).
-
-% === Handler para Nuevo Puzzle ===
 on_new_puzzle_click(Dialog, Difficulty) :-
     generate_puzzle(Difficulty, Puzzle),
     clear_input_grid(Dialog),
@@ -363,8 +349,6 @@ on_new_puzzle_click(Dialog, Difficulty) :-
             number_string(Val, S),
             send(CellItem, selection, S)
           )).
-
-% === Handlers para Save y Open ===
 
 ask_file_path(Dialog, Mode, PathString) :-
     (Mode == save -> Title = 'Guardar tablero' ; Title = 'Abrir tablero'),
