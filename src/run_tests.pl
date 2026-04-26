@@ -3,6 +3,7 @@
 %% Runs all plunit test suites
 
 :- use_module(library(plunit)).
+:- use_module(sudoku_solver).
 :- use_module(sudoku_gui).
 
 %% GUI Practice Tests
