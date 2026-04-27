@@ -19,15 +19,16 @@ board_to_file(Board, Path) :-
     %% First validate the board to ensure it's valid
     sudoku_validate:validate_board(Board, ok),
     !,
-    %% Open the file for writing
-    open(Path, write, Stream),
-    %% Write each row as a line
-    forall(nth0(_, Board, Row),
-           (   forall(nth0(_, Row, Cell),
-                      format(Stream, '~w ', [Cell])),
-               nl(Stream)
-           )),
-    close(Stream).
+    %% Open and write with guaranteed cleanup
+    setup_call_cleanup(
+        open(Path, write, Stream, []),
+        (   forall(nth0(_, Board, Row),
+                   (   forall(nth0(_, Row, Cell),
+                               format(Stream, '~w ', [Cell])),
+                       nl(Stream)
+                   ))),
+        close(Stream)
+    ).
 board_to_file(_Board, _Path) :-
     %% If validation fails, this fails
     fail.
@@ -37,13 +38,13 @@ board_to_file(_Board, _Path) :-
 %  Returns a 9x9 matrix of integers (0-9).
 %  Fails if the file format is invalid or board is inconsistent.
 file_to_board(Path, Board) :-
-    %% Open the file for reading (catch error if file doesn't exist)
+    %% Open and read with guaranteed cleanup
     catch(
-        (   open(Path, read, Stream),
-            read_lines(Stream, 9, Board),
-            close(Stream),
-            %% Validate the loaded board
-            sudoku_validate:validate_board(Board, ok)
+        (   setup_call_cleanup(
+                open(Path, read, Stream, []),
+                (   read_lines(Stream, 9, Board),
+                    sudoku_validate:validate_board(Board, ok)),
+                close(Stream))
         ),
         Error,
         (   print_message(error, Error),
