@@ -8,7 +8,8 @@
             calculate_score/4,
             format_elapsed_time/2,
             practice_session/4,
-            count_clues/2
+            count_clues/2,
+            on_practice_timer_tick/1
           ]).
 
 :- use_module(library(pce)).
@@ -85,9 +86,11 @@ open_gui :-
     send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(620, Row2Y)),
 
     % Practice controls (hidden initially)
-    new(TimerText, text('00:00')),
-    send(TimerText, name, practice_timer_display),
+    new(TimerText, text_item(practice_timer_display, '00:00')),
+    send(TimerText, label, ''),
     send(TimerText, font, font(pixels, monospaced, 12)),
+    send(TimerText, editable, @off),
+    send(TimerText, length, 6),
     send(Dialog, display, TimerText, point(480, Row2Y)),
     send(TimerText, displayed, @off),
 
@@ -438,7 +441,7 @@ start_practice_mode(Dialog, Board, TargetSolution) :-
     % Crear timer XPCE que tickea cada segundo
     new(Timer, timer(1000)),
     send(Timer, message, message(@prolog, on_practice_timer_tick, Dialog)),
-    send(Timer, start),
+    send(Timer, start, @on),
     asserta(practice_session(InitialSnapshot, TargetSolution, StartTime, Timer)),
     lock_clue_cells(Dialog, Board),
     show_practice_controls(Dialog),
@@ -499,19 +502,17 @@ show_dialog_child(Dialog, Name) :-
 %% on_practice_timer_tick(+Dialog)
 %  Callback del timer XPCE: actualiza el display del timer.
 on_practice_timer_tick(Dialog) :-
-    catch(
-        ( practice_session(_, _, StartTime, _),
-          get_time(Now),
-          Elapsed is round(Now - StartTime),
-          format_elapsed_time(Elapsed, TimeStr),
-          ( get(Dialog, member, practice_timer_display, TimerW)
-         -> send(TimerW, string, TimeStr)
-          ; true
-          )
-        ),
-        _,
-        true
+    (   practice_session(_, _, StartTime, _)
+    ->  get_time(Now),
+        Elapsed is round(Now - StartTime),
+        update_practice_timer(Dialog, Elapsed)
+    ;   true
     ).
+
+update_practice_timer(Dialog, Elapsed) :-
+    format_elapsed_time(Elapsed, TimeStr),
+    get(Dialog, member, practice_timer_display, TimerW),
+    send(TimerW, selection, TimeStr).
 
 %% format_elapsed_time(+Seconds, -TimeStr)
 %  Formatea segundos a string MM:SS.
