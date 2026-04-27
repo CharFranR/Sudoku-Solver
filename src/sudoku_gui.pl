@@ -337,7 +337,9 @@ ask_file_path(Dialog, Mode, PathString) :-
     send(D, append, button(cancelar, message(D, return, @nil))),
     send(D, default_button, ok),
     send(D, transient_for, Dialog),
-    get(D, confirm_centered, Result),
+    send(D, focus, TI),
+    send(D, open_centered),
+    send(D, wait, return, Result),
     send(D, destroy),
     Result \== @nil,
     atom_string(Result, PathString),
@@ -645,7 +647,7 @@ show_practice_dialog_raw(Dialog, Message) :-
     send(ResultD, append, button('Cerrar', message(ResultD, destroy))),
     send(ResultD, transient_for, Dialog),
     send(ResultD, default_button, 'Cerrar'),
-    send(ResultD, open_centered, Dialog).
+    send(ResultD, open_centered).
 
 %% gui_read_board_practice(+Dialog, -Board)
 %  Lee el board de la GUI sin lanzar errores en input inválido.
