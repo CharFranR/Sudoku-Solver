@@ -89,18 +89,18 @@ open_gui :-
     send(TimerText, name, practice_timer_display),
     send(TimerText, font, font(pixels, monospaced, 12)),
     send(Dialog, display, TimerText, point(480, Row2Y)),
-    send(TimerText, display, @off),
+    send(TimerText, displayed, @off),
 
     send(Dialog, display, button('Comprobar', message(@prolog, on_comprobar_click, Dialog)), point(530, Row2Y)),
     send(Dialog, display, button('Volver', message(@prolog, on_return_click, Dialog)), point(620, Row2Y)),
 
     % Ensure practice controls are hidden initially
     (   get(Dialog, member, 'Comprobar', BtnComp)
-    ->  send(BtnComp, display, @off)
+    ->  send(BtnComp, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Volver', BtnVolver)
-    ->  send(BtnVolver, display, @off)
+    ->  send(BtnVolver, displayed, @off)
     ;   true
     ),
 
@@ -462,31 +462,31 @@ show_practice_controls(Dialog) :-
     forall(member(Name, ['Resolver', 'Limpiar Todo', 'Practicar', 'Save', 'Open',
                           'Easy', 'Medium', 'Hard']),
            ( get(Dialog, member, Name, Btn)
-          -> send(Btn, display, @off)
+          -> send(Btn, displayed, @off)
           ;  true
            )),
     forall(between(1, 5, N),
            ( get(Dialog, member, N, Btn)
-          -> send(Btn, display, @off)
+          -> send(Btn, displayed, @off)
           ;  true
            )),
     % Ocultar labels
     forall(member(Name, ['Ejercicios:', 'Nuevo Puzzle:', 'Ingresar datos', 'Resultados']),
            ( get(Dialog, member, Name, Lbl)
-          -> send(Lbl, display, @off)
+          -> send(Lbl, displayed, @off)
           ;  true
            )),
     % Mostrar controles de práctica
     (   get(Dialog, member, practice_timer_display, TimerW)
-    ->  send(TimerW, display, @on)
+    ->  send(TimerW, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Comprobar', BtnComp)
-    ->  send(BtnComp, display, @on)
+    ->  send(BtnComp, displayed, @on)
     ;   true
     ),
     (   get(Dialog, member, 'Volver', BtnVolver)
-    ->  send(BtnVolver, display, @on)
+    ->  send(BtnVolver, displayed, @on)
     ;   true
     ).
 
@@ -494,32 +494,32 @@ show_practice_controls(Dialog) :-
 %  Oculta controles de práctica y muestra controles normales.
 hide_practice_controls(Dialog) :-
     (   get(Dialog, member, practice_timer_display, TimerW)
-    ->  send(TimerW, display, @off)
+    ->  send(TimerW, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Comprobar', BtnComp)
-    ->  send(BtnComp, display, @off)
+    ->  send(BtnComp, displayed, @off)
     ;   true
     ),
     (   get(Dialog, member, 'Volver', BtnVolver)
-    ->  send(BtnVolver, display, @off)
+    ->  send(BtnVolver, displayed, @off)
     ;   true
     ),
     % Mostrar controles normales
     forall(member(Name, ['Resolver', 'Limpiar Todo', 'Practicar', 'Save', 'Open',
                           'Easy', 'Medium', 'Hard']),
            ( get(Dialog, member, Name, Btn)
-          -> send(Btn, display, @on)
+          -> send(Btn, displayed, @on)
           ;  true
            )),
     forall(between(1, 5, N),
            ( get(Dialog, member, N, Btn)
-          -> send(Btn, display, @on)
+          -> send(Btn, displayed, @on)
           ;  true
            )),
     forall(member(Name, ['Ejercicios:', 'Nuevo Puzzle:', 'Ingresar datos', 'Resultados']),
            ( get(Dialog, member, Name, Lbl)
-          -> send(Lbl, display, @on)
+          -> send(Lbl, displayed, @on)
           ;  true
            )).
 
