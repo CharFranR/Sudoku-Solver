@@ -85,7 +85,8 @@ open_gui :-
     send(Dialog, display, button('Open', message(@prolog, on_open_click, Dialog)), point(620, Row2Y)),
 
     % Practice controls (hidden initially)
-    new(TimerText, text(practice_timer_display, '00:00')),
+    new(TimerText, text('00:00')),
+    send(TimerText, name, practice_timer_display),
     send(TimerText, font, font(pixels, monospaced, 12)),
     send(Dialog, display, TimerText, point(480, Row2Y)),
     send(TimerText, display, @off),
