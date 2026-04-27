@@ -8,17 +8,17 @@
             calculate_score/4,
             format_elapsed_time/2,
             practice_session/4,
-            count_clues/2,
-            on_practice_timer_tick/1
+            count_clues/2
           ]).
 
 :- use_module(library(pce)).
+:- use_module(library(thread)).
 :- use_module(sudoku_solver).
 :- use_module(sudoku_persistence).
 :- use_module(sudoku_game_flow).
 
 :- dynamic(practice_session/4).
-    % practice_session(InitialBoard, TargetSolution, StartTime, TimerObj)
+    % practice_session(InitialBoard, TargetSolution, StartTime, _ThreadId)
 
 cell_name(Prefix, Row, Col, NameAtom) :-
     atomic_list_concat([Prefix, '_cell_', Row, '_', Col], NameAtom).
@@ -438,14 +438,34 @@ handle_practice_start(Dialog, _Board, inconsistent(Reason), _TargetSolution) :-
 start_practice_mode(Dialog, Board, TargetSolution) :-
     duplicate_term(Board, InitialSnapshot),
     get_time(StartTime),
-    % Crear timer XPCE que tickea cada segundo
-    new(Timer, timer(1000)),
-    send(Timer, message, message(@prolog, on_practice_timer_tick, Dialog)),
-    send(Timer, start, repeat),
-    asserta(practice_session(InitialSnapshot, TargetSolution, StartTime, Timer)),
+    % Crear thread Prolog para el timer (XPCE timer no funciona en este entorno)
+    thread_create(timer_loop(Dialog), Tid, []),
+    asserta(practice_session(InitialSnapshot, TargetSolution, StartTime, Tid)),
     lock_clue_cells(Dialog, Board),
     show_practice_controls(Dialog),
     update_status(Dialog, 'Modo práctica: completa las celdas vacías y presiona Comprobar').
+
+%% timer_loop(+Dialog)
+%  Loop de timer en thread separado: tickea cada 1 segundo.
+timer_loop(Dialog) :-
+    catch(
+        (   repeat,
+            sleep(1),
+            (   practice_session(_, _, StartTime, _)
+            ->  get_time(Now),
+                Elapsed is round(Now - StartTime),
+                format_elapsed_time(Elapsed, TimeStr),
+                (   get(Dialog, member, practice_timer_display, TW)
+                ->  send(TW, selection, TimeStr)
+                ;   true
+                ),
+                fail
+            ;   !   % No hay sesión de práctica → salir del loop
+            )
+        ),
+        exit,
+        true
+    ).
 
 %% lock_clue_cells(+Dialog, +Board)
 %  Deshabilita edición en celdas que tienen pistas (Val > 0).
@@ -499,21 +519,6 @@ show_dialog_child(Dialog, Name) :-
     ;   true
     ).
 
-%% on_practice_timer_tick(+Dialog)
-%  Callback del timer XPCE: actualiza el display del timer.
-on_practice_timer_tick(Dialog) :-
-    (   practice_session(_, _, StartTime, _)
-    ->  get_time(Now),
-        Elapsed is round(Now - StartTime),
-        update_practice_timer(Dialog, Elapsed)
-    ;   true
-    ).
-
-update_practice_timer(Dialog, Elapsed) :-
-    format_elapsed_time(Elapsed, TimeStr),
-    get(Dialog, member, practice_timer_display, TimerW),
-    send(TimerW, selection, TimeStr).
-
 %% format_elapsed_time(+Seconds, -TimeStr)
 %  Formatea segundos a string MM:SS.
 format_elapsed_time(Seconds, TimeStr) :-
@@ -530,11 +535,11 @@ format_elapsed_time(Seconds, TimeStr) :-
     atomic_list_concat([MinStr, SecStr], ':', TimeStr).
 
 %% stop_practice_timer
-%  Detiene el timer XPCE si está corriendo.
+%  Detiene el thread del timer si está corriendo.
 stop_practice_timer :-
-    practice_session(_, _, _, Timer),
-    catch(send(Timer, stop), _, true),
-    catch(send(Timer, destroy), _, true),
+    practice_session(_, _, _, Tid),
+    catch(thread_signal(Tid, throw(exit)), _, true),
+    catch(thread_join(Tid, _), _, true),
     !.
 stop_practice_timer.
 
