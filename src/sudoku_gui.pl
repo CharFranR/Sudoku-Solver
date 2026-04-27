@@ -457,71 +457,43 @@ lock_clue_cells(Dialog, Board) :-
             )).
 
 %% show_practice_controls(+Dialog)
-%  Oculta controles normales y muestra controles de práctica.
+%  Oculta botones normales y muestra controles de práctica.
 show_practice_controls(Dialog) :-
-    forall(member(Name, ['Resolver', 'Limpiar Todo', 'Practicar', 'Save', 'Open',
-                          'Easy', 'Medium', 'Hard']),
-           ( get(Dialog, member, Name, Btn)
-          -> send(Btn, displayed, @off)
-          ;  true
-           )),
+    % Ocultar botones normales
+    forall(member(Label, ['Resolver', 'Limpiar Todo', 'Practicar', 'Save', 'Open',
+                           'Easy', 'Medium', 'Hard']),
+           hide_dialog_child(Dialog, Label)),
     forall(between(1, 5, N),
-           ( get(Dialog, member, N, Btn)
-          -> send(Btn, displayed, @off)
-          ;  true
-           )),
-    % Ocultar labels
-    forall(member(Name, ['Ejercicios:', 'Nuevo Puzzle:', 'Ingresar datos', 'Resultados']),
-           ( get(Dialog, member, Name, Lbl)
-          -> send(Lbl, displayed, @off)
-          ;  true
-           )),
-    % Mostrar controles de práctica
-    (   get(Dialog, member, practice_timer_display, TimerW)
-    ->  send(TimerW, displayed, @on)
-    ;   true
-    ),
-    (   get(Dialog, member, 'Comprobar', BtnComp)
-    ->  send(BtnComp, displayed, @on)
-    ;   true
-    ),
-    (   get(Dialog, member, 'Volver', BtnVolver)
-    ->  send(BtnVolver, displayed, @on)
+           hide_dialog_child(Dialog, N)),
+    % Mostrar timer y botones de práctica
+    show_dialog_child(Dialog, practice_timer_display),
+    show_dialog_child(Dialog, 'Comprobar'),
+    show_dialog_child(Dialog, 'Volver').
+
+%% hide_practice_controls(+Dialog)
+%  Oculta controles de práctica y muestra botones normales.
+hide_practice_controls(Dialog) :-
+    hide_dialog_child(Dialog, practice_timer_display),
+    hide_dialog_child(Dialog, 'Comprobar'),
+    hide_dialog_child(Dialog, 'Volver'),
+    % Mostrar botones normales
+    forall(member(Label, ['Resolver', 'Limpiar Todo', 'Practicar', 'Save', 'Open',
+                           'Easy', 'Medium', 'Hard']),
+           show_dialog_child(Dialog, Label)),
+    forall(between(1, 5, N),
+           show_dialog_child(Dialog, N)).
+
+hide_dialog_child(Dialog, Name) :-
+    (   get(Dialog, member, Name, Obj)
+    ->  send(Obj, displayed, @off)
     ;   true
     ).
 
-%% hide_practice_controls(+Dialog)
-%  Oculta controles de práctica y muestra controles normales.
-hide_practice_controls(Dialog) :-
-    (   get(Dialog, member, practice_timer_display, TimerW)
-    ->  send(TimerW, displayed, @off)
+show_dialog_child(Dialog, Name) :-
+    (   get(Dialog, member, Name, Obj)
+    ->  send(Obj, displayed, @on)
     ;   true
-    ),
-    (   get(Dialog, member, 'Comprobar', BtnComp)
-    ->  send(BtnComp, displayed, @off)
-    ;   true
-    ),
-    (   get(Dialog, member, 'Volver', BtnVolver)
-    ->  send(BtnVolver, displayed, @off)
-    ;   true
-    ),
-    % Mostrar controles normales
-    forall(member(Name, ['Resolver', 'Limpiar Todo', 'Practicar', 'Save', 'Open',
-                          'Easy', 'Medium', 'Hard']),
-           ( get(Dialog, member, Name, Btn)
-          -> send(Btn, displayed, @on)
-          ;  true
-           )),
-    forall(between(1, 5, N),
-           ( get(Dialog, member, N, Btn)
-          -> send(Btn, displayed, @on)
-          ;  true
-           )),
-    forall(member(Name, ['Ejercicios:', 'Nuevo Puzzle:', 'Ingresar datos', 'Resultados']),
-           ( get(Dialog, member, Name, Lbl)
-          -> send(Lbl, displayed, @on)
-          ;  true
-           )).
+    ).
 
 %% on_practice_timer_tick(+Dialog)
 %  Callback del timer XPCE: actualiza el display del timer.
