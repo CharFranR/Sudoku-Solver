@@ -437,7 +437,8 @@ start_practice_mode(Dialog, Board, TargetSolution) :-
     get_time(StartTime),
     % Crear timer XPCE que tickea cada segundo
     new(Timer, timer(1000)),
-    send(Timer, start, message(@prolog, on_practice_timer_tick, Dialog)),
+    send(Timer, message, message(@prolog, on_practice_timer_tick, Dialog)),
+    send(Timer, start),
     asserta(practice_session(InitialSnapshot, TargetSolution, StartTime, Timer)),
     lock_clue_cells(Dialog, Board),
     show_practice_controls(Dialog),
