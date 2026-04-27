@@ -1,7 +1,6 @@
 :- begin_tests(sudoku_persistence).
 
 :- use_module('sudoku_persistence').
-:- use_module(library(process)).
 
 % Valid board for reuse
 test_board([
@@ -15,16 +14,7 @@ test_board([
     [0,0,0,4,1,9,0,0,5],
     [0,0,0,0,8,0,0,7,9]]).
 
-% Cross-platform temp file
-test_file(File) :-
-    getenv('TEMP', TempDir),
-    !,
-    atom_concat(TempDir, '/sudoku_test_board.txt', File).
-test_file(File) :-
-    getenv('TMP', TempDir),
-    !,
-    atom_concat(TempDir, '/sudoku_test_board.txt', File).
-test_file('./sudoku_test_board.txt'). % Fallback to current dir
+test_file('/tmp/sudoku_test_board.txt').
 
 %% === board_to_file/2 ===
 
