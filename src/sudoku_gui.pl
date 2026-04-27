@@ -337,6 +337,8 @@ ask_file_path(Dialog, Mode, PathString) :-
     send(D, append, button(cancelar, message(D, return, @nil))),
     send(D, default_button, ok),
     send(D, transient_for, Dialog),
+    send(D, open_centered),
+    send(D, focus, TI),
     get(D, confirm_centered, Result),
     send(D, destroy),
     Result \== @nil,
